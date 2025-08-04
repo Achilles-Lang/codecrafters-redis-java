@@ -59,6 +59,33 @@ public class ClientHandler implements Runnable{
                             outputStream.write("-ERR wrong number of arguments for 'echo' command\r\n".getBytes());
                         }
                         break;
+                    case "SET":
+                        if (commandParts.size() > 2) {
+                            String key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            byte[] value = commandParts.get(2);
+                            DataStore.set(key, value);
+                            outputStream.write("+OK\r\n".getBytes());
+                        } else {
+                            outputStream.write("-ERR wrong number of arguments for 'set' command\r\n".getBytes());
+                        }
+                        break;
+                    case "GET":
+                        if (commandParts.size() > 1) {
+                            String key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            byte[] value = DataStore.get(key);
+                            if (value != null) {
+                                // 找到了值，以 Bulk String 格式返回
+                                outputStream.write(('$' + String.valueOf(value.length) + "\r\n").getBytes());
+                                outputStream.write(value);
+                                outputStream.write("\r\n".getBytes());
+                            } else {
+                                // 没找到值，返回 Null Bulk String
+                                outputStream.write("$-1\r\n".getBytes());
+                            }
+                        } else {
+                            outputStream.write("-ERR wrong number of arguments for 'get' command\r\n".getBytes());
+                        }
+                        break;
                     default:
                         //不支持的命令
                         outputStream.write(("-ERR unknown command '" + commandName + "'\r\n").getBytes());
