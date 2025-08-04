@@ -1,15 +1,18 @@
+import javax.swing.text.html.parser.Parser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * @author Achilles
  */
 public class ClientHandler implements Runnable{
 
-    private Socket clientSocket;
+    private final Socket clientSocket;
 
     public ClientHandler(Socket socket) {
         this.clientSocket = socket;
@@ -22,18 +25,48 @@ public class ClientHandler implements Runnable{
     @Override
     public void run( ) {
         //获取该连接的输入和输出流
-        OutputStream outputStream = null;
         try (Socket socket=this.clientSocket) {
             System.out.println("New client handler thread started for " + socket.getRemoteSocketAddress());
 
-            InputStream inputStream = clientSocket.getInputStream();
-            outputStream = clientSocket.getOutputStream();
-            byte[] buffer = new byte[1024];
-            while(inputStream.read(buffer) != -1){
-                // 每当读取到数据，就发送一个 PONG 响应
-                outputStream.write("+PONG\r\n".getBytes());
+            OutputStream outputStream = socket.getOutputStream();
+            Protocol protocol=new Protocol(socket.getInputStream());
+
+            while (!socket.isClosed()) {
+                //1.使用解析器读取一个完整的命令
+                List<byte[]> commandParts=protocol.readCommand();
+                if(commandParts == null){
+                    //客户端关闭了连接
+                    break;
+                }
+
+                //2.解析命令名称
+                String commandName=new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
+
+                //3.根据命令名称执行不同的操作
+                switch (commandName){
+                    case "PING":
+                        outputStream.write("+PONG\r\n".getBytes());
+                        break;
+                    case "ECHO":
+                        if(commandParts.size()>1){
+                            byte[] argument = commandParts.get(1);
+                            //回复一个批量字符串：$<length>\r\n<data>\r\n
+                            outputStream.write(('$' + String.valueOf(argument.length) + "\r\n").getBytes());
+                            outputStream.write(argument);
+                            outputStream.write("\r\n".getBytes());
+                        }else{
+                            //参数不足
+                            outputStream.write("-ERR wrong number of arguments for 'echo' command\r\n".getBytes());
+                        }
+                        break;
+                    default:
+                        //不支持的命令
+                        outputStream.write(("-ERR unknown command '" + commandName + "'\r\n").getBytes());
+                        break;
+                }
                 outputStream.flush();
             }
+
         } catch (IOException e) {
             System.out.println("Connection closed for " + clientSocket.getRemoteSocketAddress() + ": " + e.getMessage());
         }finally {
