@@ -60,23 +60,49 @@ public class ClientHandler implements Runnable{
                         }
                         break;
                     case "SET":
-                        if (commandParts.size() > 2) {
-                            String key = new String(commandParts.get(1), StandardCharsets.UTF_8);
-                            byte[] value = commandParts.get(2);
-                            DataStore.set(key, value);
-                            outputStream.write("+OK\r\n".getBytes());
-                        } else {
+                        if (commandParts.size() < 3) {
                             outputStream.write("-ERR wrong number of arguments for 'set' command\r\n".getBytes());
+                            break;
                         }
+
+                        String key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                        byte[] value = commandParts.get(2);
+                        long ttl = -1; // 默认永不过期
+
+                        // --- 解析可选的 PX 参数 ---
+                        if (commandParts.size() > 3) {
+                            for (int i = 3; i < commandParts.size(); i++) {
+                                String option = new String(commandParts.get(i), StandardCharsets.UTF_8).toUpperCase();
+                                if ("PX".equals(option)) {
+                                    // PX 的下一个参数是过期时间
+                                    if (i + 1 < commandParts.size()) {
+                                        try {
+                                            ttl = Long.parseLong(new String(commandParts.get(i + 1)));
+                                            i++; // 跳过下一个参数，因为它已经被消费了
+                                        } catch (NumberFormatException e) {
+                                            outputStream.write("-ERR value is not an integer or out of range\r\n".getBytes());
+                                            // 可以选择直接返回，避免执行 set
+                                            return;
+                                        }
+                                    } else {
+                                        outputStream.write("-ERR syntax error\r\n".getBytes());
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+
+                        DataStore.set(key, value, ttl);
+                        outputStream.write("+OK\r\n".getBytes());
                         break;
                     case "GET":
                         if (commandParts.size() > 1) {
-                            String key = new String(commandParts.get(1), StandardCharsets.UTF_8);
-                            byte[] value = DataStore.get(key);
-                            if (value != null) {
+                            String getKey = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            byte[] getValue = DataStore.get(getKey);
+                            if (getValue != null) {
                                 // 找到了值，以 Bulk String 格式返回
-                                outputStream.write(('$' + String.valueOf(value.length) + "\r\n").getBytes());
-                                outputStream.write(value);
+                                outputStream.write(('$' + String.valueOf(getValue.length) + "\r\n").getBytes());
+                                outputStream.write(getValue);
                                 outputStream.write("\r\n".getBytes());
                             } else {
                                 // 没找到值，返回 Null Bulk String
