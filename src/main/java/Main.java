@@ -22,9 +22,9 @@ public class Main {
             InputStream inputStream = clientSocket.getInputStream();
 
             //创建一个缓冲区来读取数据
-            byte[] buffer = new byte[1024];
+//            byte[] buffer = new byte[1024];
             //2.循环读取来自同一个客户端的数据
-            while(inputStream.read(buffer) != -1){
+            while(inputStream.read() != -1){
                 // 3.每当读取到数据，就发送一个 PONG 响应
                 outputStream.write("+PONG\r\n".getBytes());
                 outputStream.flush();
