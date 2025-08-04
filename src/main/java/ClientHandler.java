@@ -21,7 +21,6 @@ public class ClientHandler implements Runnable{
 
     @Override
     public void run( ) {
-        //1.在循环外部接受一次连接
         //获取该连接的输入和输出流
         OutputStream outputStream = null;
         try (Socket socket=this.clientSocket) {
@@ -31,7 +30,7 @@ public class ClientHandler implements Runnable{
             outputStream = clientSocket.getOutputStream();
             byte[] buffer = new byte[1024];
             while(inputStream.read(buffer) != -1){
-                // 3.每当读取到数据，就发送一个 PONG 响应
+                // 每当读取到数据，就发送一个 PONG 响应
                 outputStream.write("+PONG\r\n".getBytes());
                 outputStream.flush();
             }
