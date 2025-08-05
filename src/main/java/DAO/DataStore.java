@@ -86,16 +86,23 @@ public class DataStore {
         List<byte[]> list = (List<byte[]>) value;
         int size = list.size();
 
-        // 3. 修正索引以符合 Redis 的行为（这个阶段只处理正数索引）
-        // （在下一阶段 "negative indexes" 我们会完善这里）
+        //负数索引转换为正数索引
         if (start < 0) {
+            start = size + start;
+        }
+        if (end < 0) {
+            end = size + end;
+        }
+
+        //索引越界情况
+        if(start < 0){
             start = 0;
         }
         if (end >= size) {
             end = size - 1;
         }
 
-        // 4. 如果修正后 start > end，说明范围无效，返回空列表
+        //如果修正后 start > end，说明范围无效，返回空列表
         if (start > end) {
             return new ArrayList<>();
         }
