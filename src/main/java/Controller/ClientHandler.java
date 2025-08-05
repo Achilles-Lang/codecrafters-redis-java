@@ -71,12 +71,17 @@ public class ClientHandler implements Runnable{
                         key = new String(commandParts.get(1), StandardCharsets.UTF_8);
                         byte[] value = commandParts.get(2);
                         long ttl = -1;
-                        if (commandParts.size() > 4 && new String(commandParts.get(3), StandardCharsets.UTF_8).equalsIgnoreCase("PX")) {
-                            ttl = Long.parseLong(new String(commandParts.get(4)));
+                        if (commandParts.size() > 4) {
+                            if (new String(commandParts.get(3), StandardCharsets.UTF_8).equalsIgnoreCase("PX")) {
+                                ttl = Long.parseLong(new String(commandParts.get(4)));
+                            }
                         }
                         // **修改点**: 调用新的 setString 方法，并传入 ValueEntry 对象
-                        ValueEntry entryToSet=new ValueEntry(value,ttl);
-                        DataStore.setString(key, entryToSet);
+                        long expiryTimestamp = (ttl > 0) ? (System.currentTimeMillis() + ttl) : -1;
+
+                        // 将计算好的绝对时间戳传入 ValueEntry
+                        DataStore.setString(key, new ValueEntry(value, expiryTimestamp));
+
                         outputStream.write("+OK\r\n".getBytes());
                         break;
                     case "GET":
