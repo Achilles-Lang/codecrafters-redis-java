@@ -1,9 +1,11 @@
+package DAO;
+
 /**
  * @author Achilles
  * 用于封装存储在DataStore中的值及其元数据
  */
 public class ValueEntry {
-    final byte[] value;
+    public final byte[] value;
     final long expiryTimestamp; // 过期的绝对时间点 (毫秒)
 
     // expiryTimestamp = -1 表示永不过期

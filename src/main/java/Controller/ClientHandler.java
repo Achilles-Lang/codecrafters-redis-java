@@ -1,14 +1,17 @@
-import javax.swing.text.html.parser.Parser;
+package Controller;
+
+import DAO.DataStore;
+import DAO.ValueEntry;
+import Utils.Protocol;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
  * @author Achilles
+ * 接入层：负责接受和响应网络请求
  */
 public class ClientHandler implements Runnable{
 
@@ -41,6 +44,7 @@ public class ClientHandler implements Runnable{
 
                 //2.解析命令名称
                 String commandName=new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
+                String key;
 
                 //3.根据命令名称执行不同的操作
                 switch (commandName){
@@ -64,52 +68,48 @@ public class ClientHandler implements Runnable{
                             outputStream.write("-ERR wrong number of arguments for 'set' command\r\n".getBytes());
                             break;
                         }
-
-                        String key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                        key = new String(commandParts.get(1), StandardCharsets.UTF_8);
                         byte[] value = commandParts.get(2);
-                        long ttl = -1; // 默认永不过期
-
-                        // --- 解析可选的 PX 参数 ---
-                        if (commandParts.size() > 3) {
-                            for (int i = 3; i < commandParts.size(); i++) {
-                                String option = new String(commandParts.get(i), StandardCharsets.UTF_8).toUpperCase();
-                                if ("PX".equals(option)) {
-                                    // PX 的下一个参数是过期时间
-                                    if (i + 1 < commandParts.size()) {
-                                        try {
-                                            ttl = Long.parseLong(new String(commandParts.get(i + 1)));
-                                            i++; // 跳过下一个参数，因为它已经被消费了
-                                        } catch (NumberFormatException e) {
-                                            outputStream.write("-ERR value is not an integer or out of range\r\n".getBytes());
-                                            // 可以选择直接返回，避免执行 set
-                                            return;
-                                        }
-                                    } else {
-                                        outputStream.write("-ERR syntax error\r\n".getBytes());
-                                        return;
-                                    }
-                                }
-                            }
+                        long ttl = -1;
+                        if (commandParts.size() > 4 && new String(commandParts.get(3), StandardCharsets.UTF_8).equalsIgnoreCase("PX")) {
+                            ttl = Long.parseLong(new String(commandParts.get(4)));
                         }
-
-                        DataStore.set(key, value, ttl);
+                        // **修改点**: 调用新的 setString 方法，并传入 ValueEntry 对象
+                        DataStore.setString(key, new ValueEntry(value, ttl));
                         outputStream.write("+OK\r\n".getBytes());
                         break;
                     case "GET":
-                        if (commandParts.size() > 1) {
-                            String getKey = new String(commandParts.get(1), StandardCharsets.UTF_8);
-                            byte[] getValue = DataStore.get(getKey);
-                            if (getValue != null) {
-                                // 找到了值，以 Bulk String 格式返回
-                                outputStream.write(('$' + String.valueOf(getValue.length) + "\r\n").getBytes());
-                                outputStream.write(getValue);
-                                outputStream.write("\r\n".getBytes());
-                            } else {
-                                // 没找到值，返回 Null Bulk String
-                                outputStream.write("$-1\r\n".getBytes());
-                            }
-                        } else {
+                        if (commandParts.size() < 2) {
                             outputStream.write("-ERR wrong number of arguments for 'get' command\r\n".getBytes());
+                            break;
+                        }
+                        key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                        // **修改点**: 调用新的 getString 方法
+                        ValueEntry entry = DataStore.getString(key);
+                        if (entry != null) {
+                            outputStream.write(('$' + String.valueOf(entry.value.length) + "\r\n").getBytes());
+                            outputStream.write(entry.value);
+                            outputStream.write("\r\n".getBytes());
+                        } else {
+                            outputStream.write("$-1\r\n".getBytes()); // Key 不存在、已过期或类型不匹配
+                        }
+                        break;
+                    case "RPUSH":
+                        if (commandParts.size() < 3) {
+                            outputStream.write("-ERR wrong number of arguments for 'rpush' command\r\n".getBytes());
+                            break;
+                        }
+                        key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                        // RPUSH 支持一次添加多个值
+                        List<byte[]> valuesToPush = commandParts.subList(2, commandParts.size());
+
+                        int listSize = DataStore.rpush(key, valuesToPush);
+
+                        if (listSize == -1) {
+                            outputStream.write("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n".getBytes());
+                        } else {
+                            // 返回 RESP 整数响应
+                            outputStream.write((":" + listSize + "\r\n").getBytes());
                         }
                         break;
                     default:
