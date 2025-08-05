@@ -1,5 +1,7 @@
 package DAO;
 
+import Config.WrongTypeException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -59,4 +61,50 @@ public class DataStore {
         list.addAll(valuesToPush);
         return list.size();
     }
+    /**
+     * 获取列表在指定范围内的元素。
+     * @param key 列表的 key
+     * @param start 起始索引
+     * @param end 结束索引
+     * @return 包含范围内元素的列表。如果 key 不存在，返回空列表。
+     * @throws WrongTypeException 如果 key 对应的值不是列表。
+     */
+    public static List<byte[]> lrange(String key, int start, int end) throws WrongTypeException {
+        Object value = map.get(key);
+
+        // 1. 如果 key 不存在，根据 Redis 规范返回一个空列表
+        if (value == null) {
+            return new ArrayList<>();
+        }
+
+        // 2. 如果 key 存在但不是列表，抛出类型错误异常
+        if (!(value instanceof List)) {
+            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+        }
+
+        @SuppressWarnings("unchecked")
+        List<byte[]> list = (List<byte[]>) value;
+        int size = list.size();
+
+        // 3. 修正索引以符合 Redis 的行为（这个阶段只处理正数索引）
+        // （在下一阶段 "negative indexes" 我们会完善这里）
+        if (start < 0) {
+            start = 0;
+        }
+        if (end >= size) {
+            end = size - 1;
+        }
+
+        // 4. 如果修正后 start > end，说明范围无效，返回空列表
+        if (start > end) {
+            return new ArrayList<>();
+        }
+
+        // 5. 使用 subList 安全地获取子列表
+        // 注意：Java 的 subList 的 toIndex 是不包含的 (exclusive)，
+        // 而 LRANGE 的 end 是包含的 (inclusive)，所以我们需要 +1。
+        return new ArrayList<>(list.subList(start, end + 1));
+    }
+
+
 }

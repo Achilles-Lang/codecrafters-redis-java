@@ -1,5 +1,6 @@
 package Controller;
 
+import Config.WrongTypeException;
 import DAO.DataStore;
 import DAO.ValueEntry;
 import Utils.Protocol;
@@ -116,6 +117,33 @@ public class ClientHandler implements Runnable{
                         } else {
                             // 返回 RESP 整数响应
                             outputStream.write((":" + listSize + "\r\n").getBytes());
+                        }
+                        break;
+                    case "LRANGE":
+                        if (commandParts.size() != 4) {
+                            outputStream.write("-ERR wrong number of arguments for 'lrange' command\r\n".getBytes());
+                            break;
+                        }
+                        try {
+                            key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            int start = Integer.parseInt(new String(commandParts.get(2)));
+                            int end = Integer.parseInt(new String(commandParts.get(3)));
+
+                            // 调用 DataStore 的核心逻辑
+                            List<byte[]> result = DataStore.lrange(key, start, end);
+
+                            // 将返回的 List<byte[]> 格式化为 RESP Array
+                            outputStream.write(("*" + result.size() + "\r\n").getBytes());
+                            for (byte[] element : result) {
+                                outputStream.write(('$' + String.valueOf(element.length) + "\r\n").getBytes());
+                                outputStream.write(element);
+                                outputStream.write("\r\n".getBytes());
+                            }
+
+                        } catch (NumberFormatException e) {
+                            outputStream.write("-ERR value is not an integer or out of range\r\n".getBytes());
+                        } catch (WrongTypeException e) {
+                            outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
                         }
                         break;
                     default:
