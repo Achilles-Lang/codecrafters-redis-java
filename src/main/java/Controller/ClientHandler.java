@@ -75,7 +75,8 @@ public class ClientHandler implements Runnable{
                             ttl = Long.parseLong(new String(commandParts.get(4)));
                         }
                         // **修改点**: 调用新的 setString 方法，并传入 ValueEntry 对象
-                        DataStore.setString(key, new ValueEntry(value, ttl));
+                        ValueEntry entryToSet=new ValueEntry(value,ttl);
+                        DataStore.setString(key, entryToSet);
                         outputStream.write("+OK\r\n".getBytes());
                         break;
                     case "GET":
