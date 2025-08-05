@@ -108,15 +108,38 @@ public class ClientHandler implements Runnable{
                         }
                         key = new String(commandParts.get(1), StandardCharsets.UTF_8);
                         // RPUSH 支持一次添加多个值
-                        List<byte[]> valuesToPush = commandParts.subList(2, commandParts.size());
+                        List<byte[]> valuesToRPush = commandParts.subList(2, commandParts.size());
 
-                        int listSize = DataStore.rpush(key, valuesToPush);
+                        int rPushListSize = DataStore.rpush(key, valuesToRPush);
 
-                        if (listSize == -1) {
+                        if ( rPushListSize== -1) {
                             outputStream.write("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n".getBytes());
                         } else {
                             // 返回 RESP 整数响应
-                            outputStream.write((":" + listSize + "\r\n").getBytes());
+                            outputStream.write((":" + rPushListSize + "\r\n").getBytes());
+                        }
+                        break;
+                    case "LPUSH":
+                        if (commandParts.size() < 3) {
+                            outputStream.write("-ERR wrong number of arguments for 'lpush' command\r\n".getBytes());
+                            break;
+                        }
+                        try {
+                            key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            // LPUSH 也支持一次添加多个值
+                            List<byte[]> valuesToLPush = commandParts.subList(2, commandParts.size());
+
+                            int lPushListSize = DataStore.lpush(key, valuesToLPush);
+
+                            if (lPushListSize == -1) {
+                                outputStream.write("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n".getBytes());
+                            } else {
+                                // 返回 RESP 整数响应
+                                outputStream.write((":" + lPushListSize + "\r\n").getBytes());
+                            }
+                        } catch (Exception e) {
+                            // 捕获通用异常以防万一
+                            outputStream.write(("-ERR " + e.getMessage() + "\r\n").getBytes());
                         }
                         break;
                     case "LRANGE":

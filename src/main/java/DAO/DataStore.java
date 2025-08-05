@@ -2,11 +2,8 @@ package DAO;
 
 import Config.WrongTypeException;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 /**
  * @author Achilles
@@ -48,7 +45,7 @@ public class DataStore {
 
         if (value == null) {
             // 如果 key 不存在，创建新列表
-            list = new ArrayList<>();
+            list = new LinkedList<>();
             map.put(key, list);
         } else if (value instanceof List) {
             // 如果是列表，直接使用
@@ -61,6 +58,46 @@ public class DataStore {
         list.addAll(valuesToPush);
         return list.size();
     }
+    /**
+     * 将一个或多个值推入列表头部。
+     * @param key 列表的 key
+     * @param valuesToPush 要添加的元素
+     * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1。
+     */
+    public static int lpush(String key, List<byte[]> valuesToPush) {
+        Object existingValue = map.get(key);
+
+        LinkedList<byte[]> list;
+
+        if (existingValue == null) {
+            // 如果 key 不存在，创建新 LinkedList
+            list = new LinkedList<>();
+            map.put(key, list);
+        } else if (existingValue instanceof List) {
+            // 如果已存在的是 ArrayList，为了效率创建一个新的 LinkedList
+            if (!(existingValue instanceof LinkedList)) {
+                list = new LinkedList<>( (List<byte[]>) existingValue );
+                map.put(key, list);
+            } else {
+                list = (LinkedList<byte[]>) existingValue;
+            }
+        } else {
+            // 如果 key 存在但不是列表，返回错误码
+            return -1;
+        }
+
+        // 遍历要插入的元素，逐个添加到列表头部
+        // LPUSH a b c -> 列表最终是 [c, b, a, ...]
+        // 所以我们按 a, b, c 的顺序，依次在索引 0 处插入
+        for (byte[] value : valuesToPush) {
+            // LinkedList.addFirst() 是 O(1) 操作，效率很高
+            list.addFirst(value);
+        }
+
+        return list.size();
+    }
+
+
     /**
      * 获取列表在指定范围内的元素。
      * @param key 列表的 key
