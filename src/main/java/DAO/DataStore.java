@@ -150,5 +150,28 @@ public class DataStore {
         return new ArrayList<>(list.subList(start, end + 1));
     }
 
+    /**
+     * 获取列表的长度。
+     * @param key 列表的 key
+     * @return 列表的长度。如果 key 不存在，返回 0。
+     * @throws WrongTypeException 如果 key 存在但不是列表类型。
+     */
+    public static int llen(String key) throws WrongTypeException {
+        Object value = map.get(key);
 
+        // 情况 2: key 不存在，返回 0
+        if (value == null) {
+            return 0;
+        }
+
+        // 情况 3: key 存在但不是列表，抛出异常
+        if (!(value instanceof List)) {
+            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+        }
+
+        // 情况 1: key 是列表，返回其大小
+        @SuppressWarnings("unchecked")
+        List<byte[]> list = (List<byte[]>) value;
+        return list.size();
+    }
 }
