@@ -194,9 +194,9 @@ public class ClientHandler implements Runnable{
                         }
                         try {
                             key = new String(commandParts.get(1), StandardCharsets.UTF_8);
-                            long timeout = Long.parseLong(new String(commandParts.get(2)));
+                            double timeoutSeconds = Double.parseDouble(new String(commandParts.get(2)));
 
-                            byte[] poppedValue = DataStore.blpop(key, timeout);
+                            byte[] poppedValue = DataStore.blpop(key, timeoutSeconds);
 
                             if (poppedValue == null) {
                                 // 超时或 key 不存在，返回 NIL Bulk String

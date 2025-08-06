@@ -155,9 +155,8 @@ public class DataStore {
      * @throws WrongTypeException 如果 key 存在但不是列表。
      * @throws InterruptedException 如果线程在等待时被中断。
      */
-    public static byte[] blpop(String key, long timeoutSeconds) throws WrongTypeException, InterruptedException {
+    public static byte[] blpop(String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
         long startTime = System.currentTimeMillis();
-        long timeoutMillis = timeoutSeconds * 1000;
 
         synchronized (lock) {
             Object value = map.get(key);
@@ -168,32 +167,38 @@ public class DataStore {
             @SuppressWarnings("unchecked")
             LinkedList<byte[]> list = (LinkedList<byte[]>) map.get(key);
 
-            // 使用 while 循环来防止“虚假唤醒”
-            while (list == null || list.isEmpty()) {
+            //如果列表不为空，直接弹出并返回，无需阻塞
+            if (list != null&& !list.isEmpty()) {
+                return list.removeFirst();
+            }
 
-                // --- 超时逻辑 ---
-                if (timeoutSeconds > 0) {
-                    long elapsedTime = System.currentTimeMillis() - startTime;
-                    long remainingTime = timeoutMillis - elapsedTime;
-                    if (remainingTime <= 0) {
-                        return null; // 已超时
-                    }
-                    lock.wait(remainingTime); // 等待指定时间
-                } else {
-                    lock.wait(); // 无限期等待
+            //超时阻塞
+            if(timeoutSeconds == 0) {
+                //无限期等待
+                while(list==null || list.isEmpty()) {
+                    lock.wait();
+                    //醒来后重新获取list，因为他可能已经被创建
+                    list= (LinkedList<byte[]>) map.get(key);
                 }
+                return list.removeFirst();
+            }else{
+                //带超时的等待
+                long timeoutMillis=(long) (timeoutSeconds*1000);
+                long endTime = System.currentTimeMillis()+timeoutMillis;
 
-                // 被唤醒后，重新获取列表状态，因为可能已被其他线程修改
-                list = (LinkedList<byte[]>) map.get(key);
+                while(list==null || list.isEmpty()) {
+                    long remainingMillis = endTime-System.currentTimeMillis();
+                    if(remainingMillis<=0) {
+                        //时间到，列表依旧是空的，超时返回null
+                        return null;
+                    }
+                    lock.wait(remainingMillis);
+                    //醒来后重新获取list
+                    list= (LinkedList<byte[]>) map.get(key);
+                }
+                //此时猎豹非空
+                return list.removeFirst();
             }
-
-            // 成功跳出循环，说明列表非空
-            byte[] poppedValue = list.removeFirst();
-            // 如果弹出后列表为空，可以考虑从 map 中移除 key
-            if (list.isEmpty()) {
-                // map.remove(key); // 可选
-            }
-            return poppedValue;
         }
     }
 
