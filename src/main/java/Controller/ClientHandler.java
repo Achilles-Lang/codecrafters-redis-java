@@ -143,26 +143,36 @@ public class ClientHandler implements Runnable{
                         }
                         break;
                     case "LPOP":
-                        if (commandParts.size() != 2) {
+                        if (commandParts.size() < 2 || commandParts.size() > 3) {
                             outputStream.write("-ERR wrong number of arguments for 'lpop' command\r\n".getBytes());
                             break;
                         }
                         try {
                             key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            int count=1;
 
-                            // 调用 DataStore 的核心逻辑
-                            byte[] poppedValue = DataStore.lpop(key);
-
-                            if (poppedValue == null) {
-                                // 如果返回 null，说明 key 不存在或列表为空，回复 NIL Bulk String
-                                outputStream.write("$-1\r\n".getBytes());
-                            } else {
-                                // 如果成功移除了一个元素，以 Bulk String 格式返回它
-                                outputStream.write(('$' + String.valueOf(poppedValue.length) + "\r\n").getBytes());
-                                outputStream.write(poppedValue);
-                                outputStream.write("\r\n".getBytes());
+                            if(commandParts.size()==3){
+                                count=Integer.parseInt(new String(commandParts.get(2)));
+                                if(count < 0){
+                                    outputStream.write("-ERR value is out of range, must be positive\r\n".getBytes());
+                                    break;
+                                }
                             }
 
+                            List<byte[]> poppedValues = DataStore.lpop(key, count);
+
+                            if(poppedValues==null){
+                                outputStream.write("$-1\r\n".getBytes());
+                            }else {
+                                //key存在
+                                outputStream.write(("*" + poppedValues.size() + "\r\n").getBytes());
+                                for(byte[] element : poppedValues){
+                                    outputStream.write(('$' + String.valueOf(element.length) + "\r\n").getBytes());
+                                    outputStream.write(element);
+                                    outputStream.write("\r\n".getBytes());
+
+                                }
+                            }
                         } catch (WrongTypeException e) {
                             outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
                         }

@@ -97,12 +97,13 @@ public class DataStore {
         return list.size();
     }
     /**
-     * 从列表左侧（头部）移除并返回一个元素。
+     * 从列表左侧（头部）移除并返回指定数量的元素
      * @param key 列表的 key
-     * @return 被移除的元素。如果列表为空或不存在，返回 null。
+     * @param count 要移除的元素数量
+     * @return 被移除的元素列表。如果 key 不存在，返回 null。如果 key 存在但列表为空，返回空列表。
      * @throws WrongTypeException 如果 key 存在但不是列表类型。
      */
-    public static byte[] lpop(String key) throws WrongTypeException {
+    public static List<byte[]> lpop(String key,int count) throws WrongTypeException {
         Object value = map.get(key);
 
         // 情况 2: key 不存在，返回 null (代表 NIL)
@@ -115,18 +116,19 @@ public class DataStore {
             throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
         }
 
-        // 我们在 lpush 中已确保列表是 LinkedList
         @SuppressWarnings("unchecked")
         LinkedList<byte[]> list = (LinkedList<byte[]>) value;
 
-        // 情况 2: 列表为空，返回 null (代表 NIL)
-        if (list.isEmpty()) {
-            return null;
+        int actualCount = Math.min(list.size(), count);
+
+        List<byte[]> poppedElements = new ArrayList<>(actualCount);
+        for (int i = 0; i < actualCount; i++) {
+            poppedElements.add(list.removeFirst());
         }
 
         // 情况 1: 列表不为空，移除并返回第一个元素
         // LinkedList.removeFirst() 是 O(1) 操作，效率很高
-        return list.removeFirst();
+        return poppedElements;
     }
 
     /**
