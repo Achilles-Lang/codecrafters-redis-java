@@ -142,6 +142,31 @@ public class ClientHandler implements Runnable{
                             outputStream.write(("-ERR " + e.getMessage() + "\r\n").getBytes());
                         }
                         break;
+                    case "LPOP":
+                        if (commandParts.size() != 2) {
+                            outputStream.write("-ERR wrong number of arguments for 'lpop' command\r\n".getBytes());
+                            break;
+                        }
+                        try {
+                            key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+
+                            // 调用 DataStore 的核心逻辑
+                            byte[] poppedValue = DataStore.lpop(key);
+
+                            if (poppedValue == null) {
+                                // 如果返回 null，说明 key 不存在或列表为空，回复 NIL Bulk String
+                                outputStream.write("$-1\r\n".getBytes());
+                            } else {
+                                // 如果成功移除了一个元素，以 Bulk String 格式返回它
+                                outputStream.write(('$' + String.valueOf(poppedValue.length) + "\r\n").getBytes());
+                                outputStream.write(poppedValue);
+                                outputStream.write("\r\n".getBytes());
+                            }
+
+                        } catch (WrongTypeException e) {
+                            outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
+                        }
+                        break;
                     case "LRANGE":
                         if (commandParts.size() != 4) {
                             outputStream.write("-ERR wrong number of arguments for 'lrange' command\r\n".getBytes());

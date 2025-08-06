@@ -14,6 +14,7 @@ public class DataStore {
 
     // --- 字符串操作 ---
     public static void setString(String key, ValueEntry value) {
+
         map.put(key, value);
     }
 
@@ -85,7 +86,6 @@ public class DataStore {
             // 如果 key 存在但不是列表，返回错误码
             return -1;
         }
-
         // 遍历要插入的元素，逐个添加到列表头部
         // LPUSH a b c -> 列表最终是 [c, b, a, ...]
         // 所以我们按 a, b, c 的顺序，依次在索引 0 处插入
@@ -96,7 +96,38 @@ public class DataStore {
 
         return list.size();
     }
+    /**
+     * 从列表左侧（头部）移除并返回一个元素。
+     * @param key 列表的 key
+     * @return 被移除的元素。如果列表为空或不存在，返回 null。
+     * @throws WrongTypeException 如果 key 存在但不是列表类型。
+     */
+    public static byte[] lpop(String key) throws WrongTypeException {
+        Object value = map.get(key);
 
+        // 情况 2: key 不存在，返回 null (代表 NIL)
+        if (value == null) {
+            return null;
+        }
+
+        // 情况 3: key 存在但不是列表，抛出异常
+        if (!(value instanceof List)) {
+            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+        }
+
+        // 我们在 lpush 中已确保列表是 LinkedList
+        @SuppressWarnings("unchecked")
+        LinkedList<byte[]> list = (LinkedList<byte[]>) value;
+
+        // 情况 2: 列表为空，返回 null (代表 NIL)
+        if (list.isEmpty()) {
+            return null;
+        }
+
+        // 情况 1: 列表不为空，移除并返回第一个元素
+        // LinkedList.removeFirst() 是 O(1) 操作，效率很高
+        return list.removeFirst();
+    }
 
     /**
      * 获取列表在指定范围内的元素。
