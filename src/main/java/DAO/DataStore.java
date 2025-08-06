@@ -9,13 +9,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author Achilles
  */
 public class DataStore {
+
+    //新增一个全局锁对象
+    private static final Object lock = new Object();
+
+
     // 使用 Object 作为值，以存储 ValueEntry (字符串) 或 List<byte[]> (列表) 等
     private static final Map<String, Object> map = new ConcurrentHashMap<>();
 
     // --- 字符串操作 ---
     public static void setString(String key, ValueEntry value) {
-
-        map.put(key, value);
+        synchronized (lock) {
+            map.put(key, value);
+        }
     }
 
     public static ValueEntry getString(String key) {
@@ -41,23 +47,27 @@ public class DataStore {
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1 (错误码)。
      */
     public static int rpush(String key, List<byte[]> valuesToPush) {
-        Object value = map.get(key);
-        List<byte[]> list;
+        synchronized (lock) {
+            Object value = map.get(key);
+            List<byte[]> list;
 
-        if (value == null) {
-            // 如果 key 不存在，创建新列表
-            list = new LinkedList<>();
-            map.put(key, list);
-        } else if (value instanceof List) {
-            // 如果是列表，直接使用
-            list = (List<byte[]>) value;
-        } else {
-            // 如果 key 存在但不是列表，返回错误码
-            return -1;
+            if (value == null) {
+                // 如果 key 不存在，创建新列表
+                list = new LinkedList<>();
+                map.put(key, list);
+            } else if (value instanceof List) {
+                // 如果是列表，直接使用
+                list = (List<byte[]>) value;
+            } else {
+                // 如果 key 存在但不是列表，返回错误码
+                return -1;
+            }
+
+            list.addAll(valuesToPush);
+            lock.notifyAll();
+            return list.size();
         }
 
-        list.addAll(valuesToPush);
-        return list.size();
     }
     /**
      * 将一个或多个值推入列表头部。
@@ -66,35 +76,38 @@ public class DataStore {
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1。
      */
     public static int lpush(String key, List<byte[]> valuesToPush) {
-        Object existingValue = map.get(key);
+        synchronized (lock) {
+            Object existingValue = map.get(key);
 
-        LinkedList<byte[]> list;
+            LinkedList<byte[]> list;
 
-        if (existingValue == null) {
-            // 如果 key 不存在，创建新 LinkedList
-            list = new LinkedList<>();
-            map.put(key, list);
-        } else if (existingValue instanceof List) {
-            // 如果已存在的是 ArrayList，为了效率创建一个新的 LinkedList
-            if (!(existingValue instanceof LinkedList)) {
-                list = new LinkedList<>( (List<byte[]>) existingValue );
+            if (existingValue == null) {
+                // 如果 key 不存在，创建新 LinkedList
+                list = new LinkedList<>();
                 map.put(key, list);
+            } else if (existingValue instanceof List) {
+                // 如果已存在的是 ArrayList，为了效率创建一个新的 LinkedList
+                if (!(existingValue instanceof LinkedList)) {
+                    list = new LinkedList<>( (List<byte[]>) existingValue );
+                    map.put(key, list);
+                } else {
+                    list = (LinkedList<byte[]>) existingValue;
+                }
             } else {
-                list = (LinkedList<byte[]>) existingValue;
+                // 如果 key 存在但不是列表，返回错误码
+                return -1;
             }
-        } else {
-            // 如果 key 存在但不是列表，返回错误码
-            return -1;
-        }
-        // 遍历要插入的元素，逐个添加到列表头部
-        // LPUSH a b c -> 列表最终是 [c, b, a, ...]
-        // 所以我们按 a, b, c 的顺序，依次在索引 0 处插入
-        for (byte[] value : valuesToPush) {
-            // LinkedList.addFirst() 是 O(1) 操作，效率很高
-            list.addFirst(value);
+            // 遍历要插入的元素，逐个添加到列表头部
+            // LPUSH a b c -> 列表最终是 [c, b, a, ...]
+            // 所以我们按 a, b, c 的顺序，依次在索引 0 处插入
+            for (byte[] value : valuesToPush) {
+                // LinkedList.addFirst() 是 O(1) 操作，效率很高
+                list.addFirst(value);
+            }
+            lock.notifyAll();
+            return list.size();
         }
 
-        return list.size();
     }
     /**
      * 从列表左侧（头部）移除并返回指定数量的元素
@@ -104,31 +117,84 @@ public class DataStore {
      * @throws WrongTypeException 如果 key 存在但不是列表类型。
      */
     public static List<byte[]> lpop(String key,int count) throws WrongTypeException {
-        Object value = map.get(key);
+        synchronized (lock) {
+            Object value = map.get(key);
 
-        // 情况 2: key 不存在，返回 null (代表 NIL)
-        if (value == null) {
-            return null;
+            // 情况 2: key 不存在，返回 null (代表 NIL)
+            if (value == null) {
+                return null;
+            }
+
+            // 情况 3: key 存在但不是列表，抛出异常
+            if (!(value instanceof List)) {
+                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+            }
+
+            @SuppressWarnings("unchecked")
+            LinkedList<byte[]> list = (LinkedList<byte[]>) value;
+
+            int actualCount = Math.min(list.size(), count);
+
+            List<byte[]> poppedElements = new ArrayList<>(actualCount);
+            for (int i = 0; i < actualCount; i++) {
+                poppedElements.add(list.removeFirst());
+            }
+
+            // 情况 1: 列表不为空，移除并返回第一个元素
+            // LinkedList.removeFirst() 是 O(1) 操作，效率很高
+            return poppedElements;
         }
 
-        // 情况 3: key 存在但不是列表，抛出异常
-        if (!(value instanceof List)) {
-            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
+
+    /**
+     * 阻塞式地从列表左侧弹出一个元素。
+     * @param key 列表的 key
+     * @param timeoutSeconds 超时时间（秒）。0 表示无限等待。
+     * @return 弹出的元素。如果超时，返回 null。
+     * @throws WrongTypeException 如果 key 存在但不是列表。
+     * @throws InterruptedException 如果线程在等待时被中断。
+     */
+    public static byte[] blpop(String key, long timeoutSeconds) throws WrongTypeException, InterruptedException {
+        long startTime = System.currentTimeMillis();
+        long timeoutMillis = timeoutSeconds * 1000;
+
+        synchronized (lock) {
+            Object value = map.get(key);
+            if (value != null && !(value instanceof List)) {
+                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+            }
+
+            @SuppressWarnings("unchecked")
+            LinkedList<byte[]> list = (LinkedList<byte[]>) map.get(key);
+
+            // 使用 while 循环来防止“虚假唤醒”
+            while (list == null || list.isEmpty()) {
+
+                // --- 超时逻辑 ---
+                if (timeoutSeconds > 0) {
+                    long elapsedTime = System.currentTimeMillis() - startTime;
+                    long remainingTime = timeoutMillis - elapsedTime;
+                    if (remainingTime <= 0) {
+                        return null; // 已超时
+                    }
+                    lock.wait(remainingTime); // 等待指定时间
+                } else {
+                    lock.wait(); // 无限期等待
+                }
+
+                // 被唤醒后，重新获取列表状态，因为可能已被其他线程修改
+                list = (LinkedList<byte[]>) map.get(key);
+            }
+
+            // 成功跳出循环，说明列表非空
+            byte[] poppedValue = list.removeFirst();
+            // 如果弹出后列表为空，可以考虑从 map 中移除 key
+            if (list.isEmpty()) {
+                // map.remove(key); // 可选
+            }
+            return poppedValue;
         }
-
-        @SuppressWarnings("unchecked")
-        LinkedList<byte[]> list = (LinkedList<byte[]>) value;
-
-        int actualCount = Math.min(list.size(), count);
-
-        List<byte[]> poppedElements = new ArrayList<>(actualCount);
-        for (int i = 0; i < actualCount; i++) {
-            poppedElements.add(list.removeFirst());
-        }
-
-        // 情况 1: 列表不为空，移除并返回第一个元素
-        // LinkedList.removeFirst() 是 O(1) 操作，效率很高
-        return poppedElements;
     }
 
     /**

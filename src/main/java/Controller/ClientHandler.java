@@ -187,6 +187,44 @@ public class ClientHandler implements Runnable{
                             outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
                         }
                         break;
+                    case "BLPOP":
+                        if (commandParts.size() != 3) {
+                            outputStream.write("-ERR wrong number of arguments for 'blpop' command\r\n".getBytes());
+                            break;
+                        }
+                        try {
+                            key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            long timeout = Long.parseLong(new String(commandParts.get(2)));
+
+                            byte[] poppedValue = DataStore.blpop(key, timeout);
+
+                            if (poppedValue == null) {
+                                // 超时或 key 不存在，返回 NIL Bulk String
+                                outputStream.write("$-1\r\n".getBytes());
+                            } else {
+                                // 成功弹出，返回一个包含 key 和 value 的二元数组
+                                outputStream.write("*2\r\n".getBytes());
+                                // 1. 返回 key
+                                byte[] keyBytes = commandParts.get(1);
+                                outputStream.write(('$' + String.valueOf(keyBytes.length) + "\r\n").getBytes());
+                                outputStream.write(keyBytes);
+                                outputStream.write("\r\n".getBytes());
+                                // 2. 返回 value
+                                outputStream.write(('$' + String.valueOf(poppedValue.length) + "\r\n").getBytes());
+                                outputStream.write(poppedValue);
+                                outputStream.write("\r\n".getBytes());
+                            }
+
+                        } catch (NumberFormatException e) {
+                            outputStream.write("-ERR value is not an integer or out of range\r\n".getBytes());
+                        } catch (WrongTypeException e) {
+                            outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
+                        } catch (InterruptedException e) {
+                            // 线程被中断，可以简单返回 NIL
+                            outputStream.write("$-1\r\n".getBytes());
+                            Thread.currentThread().interrupt(); // 恢复中断状态
+                        }
+                        break;
                     case "LRANGE":
                         if (commandParts.size() != 4) {
                             outputStream.write("-ERR wrong number of arguments for 'lrange' command\r\n".getBytes());
