@@ -151,7 +151,9 @@ public class ClientHandler implements Runnable{
                             key = new String(commandParts.get(1), StandardCharsets.UTF_8);
                             int count=1;
 
-                            if(commandParts.size()==3){
+                            final boolean countProvided=commandParts.size()==3;
+
+                            if(countProvided){
                                 count=Integer.parseInt(new String(commandParts.get(2)));
                                 if(count < 0){
                                     outputStream.write("-ERR value is out of range, must be positive\r\n".getBytes());
@@ -163,16 +165,24 @@ public class ClientHandler implements Runnable{
 
                             if(poppedValues==null){
                                 outputStream.write("$-1\r\n".getBytes());
-                            }else {
-                                //key存在
+                            }else if(!countProvided){
+                                if(poppedValues.isEmpty()){
+                                    outputStream.write("$-1\r\n".getBytes());
+                                }else {
+                                    //key存在
+                                    byte[] singleValue = poppedValues.get(0);
+                                    outputStream.write(('$' + String.valueOf(singleValue.length) + "\r\n").getBytes());
+                                    outputStream.write(singleValue);
+                                    outputStream.write("\r\n".getBytes());
+                            }
+                            }else{
                                 outputStream.write(("*" + poppedValues.size() + "\r\n").getBytes());
-                                for(byte[] element : poppedValues){
+                                for (byte[] element : poppedValues) {
                                     outputStream.write(('$' + String.valueOf(element.length) + "\r\n").getBytes());
                                     outputStream.write(element);
                                     outputStream.write("\r\n".getBytes());
-
-                                }
                             }
+                                }
                         } catch (WrongTypeException e) {
                             outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
                         }
