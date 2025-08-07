@@ -278,4 +278,31 @@ public class DataStore {
         List<byte[]> list = (List<byte[]>) value;
         return list.size();
     }
+    /**
+     * 获取指定 key 存储的值的类型。
+     * @param key 要检查的 key
+     * @return 代表类型的字符串 ("string", "list", "none")。
+     */
+    public static String getType(String key) {
+        Object value = map.get(key);
+
+        // 情况 1: key 不存在
+        if (value == null) {
+            return "none";
+        }
+
+        // 情况 2: key 存在，使用 instanceof 判断其具体类型
+        if (value instanceof ValueEntry) {
+            // 我们用 ValueEntry 来存储字符串及其元数据
+            return "string";
+        } else if (value instanceof List) {
+            return "list";
+        } else if (value instanceof Map) {
+            return "hash";
+        } else if (value instanceof Set) {
+            return "set";
+        }
+
+        return "unknown"; // 理论上不应该发生
+    }
 }

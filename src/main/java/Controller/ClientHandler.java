@@ -271,7 +271,19 @@ public class ClientHandler implements Runnable{
                             outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
                         }
                         break;
+                    case "TYPE":
+                        if (commandParts.size() != 2) {
+                            outputStream.write("-ERR wrong number of arguments for 'type' command\r\n".getBytes());
+                            break;
+                        }
+                        key = new String(commandParts.get(1), StandardCharsets.UTF_8);
 
+                        // 调用 DataStore 的核心逻辑
+                        String type = DataStore.getType(key);
+
+                        // 将返回的类型字符串格式化为 RESP Simple String
+                        outputStream.write(("+" + type + "\r\n").getBytes());
+                        break;
                     default:
                         //不支持的命令
                         outputStream.write(("-ERR unknown command '" + commandName + "'\r\n").getBytes());
