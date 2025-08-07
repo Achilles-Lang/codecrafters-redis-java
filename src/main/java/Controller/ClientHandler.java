@@ -3,12 +3,15 @@ package Controller;
 import Config.WrongTypeException;
 import DAO.DataStore;
 import DAO.ValueEntry;
+import DAO.*;
 import Utils.Protocol;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Achilles
@@ -283,6 +286,46 @@ public class ClientHandler implements Runnable{
 
                         // 将返回的类型字符串格式化为 RESP Simple String
                         outputStream.write(("+" + type + "\r\n").getBytes());
+                        break;
+                    case "XADD":
+                        // XADD key id field value [field value ...]
+                        if (commandParts.size() < 5 || commandParts.size() % 2 == 0) {
+                            outputStream.write("-ERR wrong number of arguments for 'xadd' command\r\n".getBytes());
+                            break;
+                        }
+                        try {
+                            key = new String(commandParts.get(1), StandardCharsets.UTF_8);
+                            String idStr = new String(commandParts.get(2), StandardCharsets.UTF_8);
+
+                            // 解析 ID
+                            String[] idParts = idStr.split("-");
+                            long timestamp = Long.parseLong(idParts[0]);
+                            int sequence = Integer.parseInt(idParts[1]);
+                            StreamEntryID id = new StreamEntryID(timestamp, sequence);
+
+                            // 解析所有键值对
+                            Map<String, byte[]> fields = new HashMap<>();
+                            for (int i = 3; i < commandParts.size(); i += 2) {
+                                String fieldKey = new String(commandParts.get(i), StandardCharsets.UTF_8);
+                                byte[] fieldValue = commandParts.get(i + 1);
+                                fields.put(fieldKey, fieldValue);
+                            }
+
+                            // 调用 DataStore 的核心逻辑
+                            StreamEntryID resultId = DataStore.xadd(key, id, fields);
+
+                            // 返回 Bulk String 格式的 ID
+                            String resultIdStr = resultId.toString();
+                            outputStream.write(('$' + String.valueOf(resultIdStr.length()) + "\r\n").getBytes());
+                            outputStream.write(resultIdStr.getBytes());
+                            outputStream.write("\r\n".getBytes());
+
+                        } catch (NumberFormatException e) {
+                            outputStream.write("-ERR Invalid stream ID specified as XADD argument\r\n".getBytes());
+                        } catch (Exception e) {
+                            // 捕获 WrongTypeException 和 ID 错误
+                            outputStream.write(("-"+e.getMessage()+"\r\n").getBytes());
+                        }
                         break;
                     default:
                         //不支持的命令

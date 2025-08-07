@@ -267,6 +267,31 @@ public class DataStore {
     }
 
     /**
+     *向 Stream 添加一个新条目。
+     * @param key Stream 的 key
+     * @param id 新条目的 ID
+     * @param fields 新条目的键值对
+     * @return 成功添加后返回条目的 ID
+     * @throws Exception 如果发生错误 (类型错误, ID 错误等)
+     */
+    public static StreamEntryID xadd(String key, StreamEntryID id, Map<String, byte[]> fields) throws Exception {
+        Object value = map.get(key);
+        RedisStream stream;
+
+        if (value == null) {
+            stream = new RedisStream();
+            map.put(key, stream);
+        } else if (value instanceof RedisStream) {
+            stream = (RedisStream) value;
+        } else {
+            throw new WrongTypeException("WRONGTYPE 针对持有错误类型值的键进行操作");
+        }
+
+        StreamEntry newEntry = new StreamEntry(id, fields);
+        return stream.add(newEntry);
+    }
+
+    /**
      * 获取列表的长度。
      * @param key 列表的 key
      * @return 列表的长度。如果 key 不存在，返回 0。
