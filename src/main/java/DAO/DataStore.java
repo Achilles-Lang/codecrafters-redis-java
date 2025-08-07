@@ -148,7 +148,7 @@ public class DataStore {
     }
 
     /**
-     * 阻塞式地从列表左侧弹出一个元素。
+     * 阻塞式地从列表左侧弹出一个元素，支持超时。
      * @param key 列表的 key
      * @param timeoutSeconds 超时时间（秒）。0 表示无限等待。
      * @return 弹出的元素。如果超时，返回 null。
@@ -156,49 +156,51 @@ public class DataStore {
      * @throws InterruptedException 如果线程在等待时被中断。
      */
     public static byte[] blpop(String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
-        long startTime = System.currentTimeMillis();
-
         synchronized (lock) {
-            Object value = map.get(key);
-            if (value != null && !(value instanceof List)) {
+            // 在进入循环前，先检查一次类型是否正确
+            Object initialValue = map.get(key);
+            if (initialValue != null && !(initialValue instanceof List)) {
                 throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
             }
 
             @SuppressWarnings("unchecked")
-            LinkedList<byte[]> list = (LinkedList<byte[]>) map.get(key);
+            LinkedList<byte[]> list = (LinkedList<byte[]>) initialValue;
 
-            //如果列表不为空，直接弹出并返回，无需阻塞
-            if (list != null&& !list.isEmpty()) {
+            // 如果列表已存在且非空，直接返回，无需阻塞
+            if (list != null && !list.isEmpty()) {
                 return list.removeFirst();
             }
 
-            //超时阻塞
-            if(timeoutSeconds == 0) {
-                //无限期等待
-                while(list==null || list.isEmpty()) {
-                    lock.wait();
-                    //醒来后重新获取list，因为他可能已经被创建
-                    list= (LinkedList<byte[]>) map.get(key);
-                }
-                return list.removeFirst();
-            }else{
-                //带超时的等待
-                long timeoutMillis=(long) (timeoutSeconds*1000);
-                long endTime = System.currentTimeMillis()+timeoutMillis;
+            // --- 超时阻塞逻辑 ---
+            long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
 
-                while(list==null || list.isEmpty()) {
-                    long remainingMillis = endTime-System.currentTimeMillis();
-                    if(remainingMillis<=0) {
-                        //时间到，列表依旧是空的，超时返回null
-                        return null;
+            while (list == null || list.isEmpty()) {
+                if (timeoutSeconds > 0) {
+                    long remainingTime = deadline - System.currentTimeMillis();
+                    if (remainingTime <= 0) {
+                        return null; // 时间到了，列表仍然是空的，超时返回 null
                     }
-                    lock.wait(remainingMillis);
-                    //醒来后重新获取list
-                    list= (LinkedList<byte[]>) map.get(key);
+                    lock.wait(remainingTime);
+                } else {
+                    lock.wait(); // 无限期等待
                 }
-                //此时猎豹非空
-                return list.removeFirst();
+
+                // --- **关键修复** ---
+                // 线程被唤醒后，必须重新、完整地检查所有状态
+
+                Object valueAfterWait = map.get(key);
+
+                // 检查 key 是否在等待期间被设置成了非列表类型
+                if (valueAfterWait != null && !(valueAfterWait instanceof List)) {
+                    throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+                }
+
+                // 重新赋值 list 变量
+                list = (LinkedList<byte[]>) valueAfterWait;
             }
+
+            // 成功跳出循环，说明列表非空
+            return list.removeFirst();
         }
     }
 
