@@ -338,6 +338,8 @@ public class DataStore {
             return "hash";
         } else if (value instanceof Set) {
             return "set";
+        } else if (value instanceof RedisStream) {
+            return "stream";
         }
 
         return "unknown"; // 理论上不应该发生
