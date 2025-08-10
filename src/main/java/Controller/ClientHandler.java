@@ -324,7 +324,7 @@ public class ClientHandler implements Runnable{
                             outputStream.write("-ERR Invalid stream ID specified as XADD argument\r\n".getBytes());
                         } catch (Exception e) {
                             // 捕获 WrongTypeException 和 ID 错误
-                            outputStream.write(("-ERR"+e.getMessage()+"\r\n").getBytes());
+                            outputStream.write(("-ERR "+e.getMessage()+"\r\n").getBytes());
                         }
                         break;
                     default:
