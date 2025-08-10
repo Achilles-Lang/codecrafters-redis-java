@@ -310,9 +310,9 @@ public class DataStore {
                 }
                 finalId = new StreamEntryID(finalTimestamp, finalSequence);
             }
-
+            StreamEntry newEntry = new StreamEntry(finalId, fields);
             // 调用 RedisStream.add 进行最终验证和添加
-            return stream.add(finalId, fields);
+            return stream.add(newEntry);
         }
     }
 
