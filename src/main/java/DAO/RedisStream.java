@@ -27,4 +27,12 @@ public class RedisStream {
        entries.add(entry);
        return entry.id;
     }
+
+    //获取最后一个ID
+    public StreamEntryID getLastId(){
+        if(entries.isEmpty()){
+            return null;
+        }
+        return entries.get(entries.size()-1).id;
+    }
 }

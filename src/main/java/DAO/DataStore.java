@@ -263,28 +263,50 @@ public class DataStore {
     }
 
     /**
-     *向 Stream 添加一个新条目。
+     * 向 Stream 添加一个新条目，支持部分 ID 自动生成。
      * @param key Stream 的 key
-     * @param id 新条目的 ID
+     * @param reqTimestamp 请求的时间戳部分
+     * @param reqSequence 请求的序列号部分, -1 代表自动生成
      * @param fields 新条目的键值对
-     * @return 成功添加后返回条目的 ID
-     * @throws Exception 如果发生错误 (类型错误, ID 错误等)
+     * @return 成功添加后返回条目的最终 ID
+     * @throws Exception 如果发生错误
      */
-    public static StreamEntryID xadd(String key, StreamEntryID id, Map<String, byte[]> fields) throws Exception {
-        Object value = map.get(key);
-        RedisStream stream;
+    public static StreamEntryID xadd(String key, long reqTimestamp, int reqSequence,Map<String, byte[]> fields) throws Exception {
+        synchronized (lock){
+            Object value = map.get(key);
+            RedisStream stream;
 
-        if (value == null) {
-            stream = new RedisStream();
-            map.put(key, stream);
-        } else if (value instanceof RedisStream) {
-            stream = (RedisStream) value;
-        } else {
-            throw new WrongTypeException("WRONGTYPE 针对持有错误类型值的键进行操作");
+            if (value == null) {
+                stream = new RedisStream();
+                map.put(key, stream);
+            } else if (value instanceof RedisStream) {
+                stream = (RedisStream) value;
+            } else {
+                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+            }
+
+            StreamEntryID lastId = stream.getLastId();
+            StreamEntryID finalId;
+
+            if(reqSequence==-1){
+                if(lastId!=null&&reqTimestamp<lastId.timestamp){
+                    throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
+                }
+                if(lastId!=null&&reqTimestamp==lastId.timestamp){
+                    finalId=new StreamEntryID(reqTimestamp,lastId.sequence+1);
+                }else {
+                    int restartSequence=(reqTimestamp==0&&lastId==null)?1:0;
+                    finalId=new StreamEntryID(reqTimestamp,restartSequence);
+                }
+            }else {
+                finalId=new StreamEntryID(reqTimestamp,reqSequence);
+            }
+
+            StreamEntry newEntry=new StreamEntry(finalId,fields);
+
+            return stream.add(newEntry);
         }
 
-        StreamEntry newEntry = new StreamEntry(id, fields);
-        return stream.add(newEntry);
     }
 
     /**

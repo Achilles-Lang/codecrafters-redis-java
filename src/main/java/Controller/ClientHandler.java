@@ -303,6 +303,15 @@ public class ClientHandler implements Runnable{
                             int sequence = Integer.parseInt(idParts[1]);
                             StreamEntryID id = new StreamEntryID(timestamp, sequence);
 
+                            //解析新格式的ID
+                            if(idStr.endsWith("-*")){
+                                timestamp=Long.parseLong(idStr.substring(0,idStr.length()-2));
+                                sequence=-1;
+                            }else {
+                                timestamp=Long.parseLong(idParts[0]);
+                                sequence=Integer.parseInt(idParts[1]);
+                            }
+
                             // 解析所有键值对
                             Map<String, byte[]> fields = new HashMap<>();
                             for (int i = 3; i < commandParts.size(); i += 2) {
@@ -312,7 +321,7 @@ public class ClientHandler implements Runnable{
                             }
 
                             // 调用 DataStore 的核心逻辑
-                            StreamEntryID resultId = DataStore.xadd(key, id, fields);
+                            StreamEntryID resultId = DataStore.xadd(key, timestamp,sequence, fields);
 
                             // 返回 Bulk String 格式的 ID
                             String resultIdStr = resultId.toString();
