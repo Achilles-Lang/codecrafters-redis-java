@@ -14,14 +14,14 @@ public class RedisStream {
     //添加新条目到Stream
     public StreamEntryID add(StreamEntry entry) throws Exception {
         if(entry.id.timestamp==0&&entry.id.sequence==0){
-            throw new Exception("XADD 中指定的 ID 必须大于0-0");
+            throw new Exception("The ID specified in XADD must be greater than 0-0");
         }
 
         if(!entries.isEmpty()){
            StreamEntryID lastId=entries.get(entries.size()-1).id;
            //新ID必须比最后一个ID大
            if(entry.id.compareTo(lastId)<=0){
-           throw  new Exception("XADD 中指定的 ID 等于或小于目标流顶部项目");
+               throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
            }
        }
        entries.add(entry);
