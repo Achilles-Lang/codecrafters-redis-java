@@ -288,11 +288,13 @@ public class DataStore {
             StreamEntryID lastId = stream.getLastId();
             StreamEntryID finalId;
 
+            // --- ID 生成与验证逻辑 ---
             if (reqSequence != -1) {
-                // 用户提供了完整 ID
+                // --- 情况1：用户提供了完整的 ID (e.g., "123-45") ---
                 finalId = new StreamEntryID(reqTimestamp, reqSequence);
+
             } else {
-                // 用户请求自动生成序列号 ("*")
+                // --- 情况2：用户请求自动生成序列号 (e.g., "123-*") ---
                 long finalTimestamp = reqTimestamp;
                 int finalSequence;
 
@@ -303,16 +305,20 @@ public class DataStore {
                 if (lastId != null && finalTimestamp == lastId.timestamp) {
                     finalSequence = lastId.sequence + 1;
                 } else {
-                    // **关键修复点**
-                    // 如果时间戳是 0 (并且流为空或时间戳是新的)，序列号必须从 1 开始
-                    // 否则，它可以从 0 开始
-                    finalSequence = (finalTimestamp == 0) ? 1 : 0;
+                    // **这是最关键的逻辑**
+                    // 如果时间戳大于 0，或者流是空的但时间戳大于0，序列号从 0 开始。
+                    // 只有当流是空的并且时间戳也是 0 时，序列号才必须从 1 开始，以避免非法的 "0-0"。
+                    if (finalTimestamp == 0) {
+                        finalSequence = (lastId == null) ? 1 : 0; // 如果是新流，从1开始；否则可以从0开始
+                    } else {
+                        finalSequence = 0;
+                    }
                 }
                 finalId = new StreamEntryID(finalTimestamp, finalSequence);
             }
-            StreamEntry newEntry = new StreamEntry(finalId, fields);
-            // 调用 RedisStream.add 进行最终验证和添加
-            return stream.add(newEntry);
+
+            // 生成 ID 后，调用 stream.add 进行最终验证和添加
+            return stream.add(finalId, fields);
         }
     }
 
