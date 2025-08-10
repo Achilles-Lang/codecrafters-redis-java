@@ -271,8 +271,8 @@ public class DataStore {
      * @return 成功添加后返回条目的最终 ID
      * @throws Exception 如果发生错误
      */
-    public static StreamEntryID xadd(String key, long reqTimestamp, int reqSequence,Map<String, byte[]> fields) throws Exception {
-        synchronized (lock){
+    public static StreamEntryID xadd(String key, long reqTimestamp, int reqSequence, Map<String, byte[]> fields) throws Exception {
+        synchronized (lock) {
             Object value = map.get(key);
             RedisStream stream;
 
@@ -288,25 +288,43 @@ public class DataStore {
             StreamEntryID lastId = stream.getLastId();
             StreamEntryID finalId;
 
-            if(reqSequence==-1){
-                if(lastId!=null&&reqTimestamp<lastId.timestamp){
+            // --- ID 生成与验证逻辑 ---
+            if (reqSequence != -1) {
+                // --- 情况1：用户提供了完整的 ID (e.g., "123-45") ---
+                finalId = new StreamEntryID(reqTimestamp, reqSequence);
+
+                // 规则1：ID 不能是 0-0
+                if (finalId.timestamp == 0 && finalId.sequence == 0) {
+                    throw new Exception("The ID specified in XADD must be greater than 0-0");
+                }
+                // 规则2：新 ID 必须大于最后一个 ID
+                if (lastId != null && finalId.compareTo(lastId) <= 0) {
                     throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
                 }
-                if(lastId!=null&&reqTimestamp==lastId.timestamp){
-                    finalId=new StreamEntryID(reqTimestamp,lastId.sequence+1);
-                }else {
-                    int restartSequence=(reqTimestamp==0&&lastId==null)?1:0;
-                    finalId=new StreamEntryID(reqTimestamp,restartSequence);
+            } else {
+                // --- 情况2：用户请求自动生成序列号 (e.g., "123-*") ---
+                long finalTimestamp = reqTimestamp;
+                int finalSequence;
+
+                if (lastId != null && finalTimestamp < lastId.timestamp) {
+                    // 规则3：提供的时间戳不能小于最后一个ID的时间戳
+                    throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
                 }
-            }else {
-                finalId=new StreamEntryID(reqTimestamp,reqSequence);
+
+                if (lastId != null && finalTimestamp == lastId.timestamp) {
+                    // 时间戳相同，序列号加 1
+                    finalSequence = lastId.sequence + 1;
+                } else {
+                    // 时间戳更大，或流为空，序列号从 0 开始
+                    finalSequence = 0;
+                }
+                finalId = new StreamEntryID(finalTimestamp, finalSequence);
             }
 
-            StreamEntry newEntry=new StreamEntry(finalId,fields);
-
-            return stream.add(newEntry);
+            StreamEntry newEntry = new StreamEntry(finalId, fields);
+            stream.add(newEntry); // 此处的 add 现在只负责添加
+            return finalId;
         }
-
     }
 
     /**

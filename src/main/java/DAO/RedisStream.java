@@ -12,20 +12,10 @@ public class RedisStream {
     private final List<StreamEntry> entries=new ArrayList<>();
 
     //添加新条目到Stream
-    public StreamEntryID add(StreamEntry entry) throws Exception {
-        if(entry.id.timestamp==0&&entry.id.sequence==0){
-            throw new Exception("The ID specified in XADD must be greater than 0-0");
-        }
-
-        if(!entries.isEmpty()){
-           StreamEntryID lastId=entries.get(entries.size()-1).id;
-           //新ID必须比最后一个ID大
-           if(entry.id.compareTo(lastId)<=0){
-               throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
-           }
-       }
-       entries.add(entry);
-       return entry.id;
+    public StreamEntryID add(StreamEntry entry) {
+        // 验证逻辑已移至 DataStore，这里只负责添加
+        entries.add(entry);
+        return entry.id;
     }
 
     //获取最后一个ID
