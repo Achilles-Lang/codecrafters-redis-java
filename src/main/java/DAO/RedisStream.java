@@ -13,7 +13,11 @@ public class RedisStream {
 
     //添加新条目到Stream
     public StreamEntryID add(StreamEntry entry) throws Exception {
-       if(!entries.isEmpty()){
+        if(entry.id.timestamp==0&&entry.id.sequence==0){
+            throw new Exception("XADD 中指定的 ID 必须大于0-0");
+        }
+
+        if(!entries.isEmpty()){
            StreamEntryID lastId=entries.get(entries.size()-1).id;
            //新ID必须比最后一个ID大
            if(entry.id.compareTo(lastId)<=0){
