@@ -297,22 +297,22 @@ public class ClientHandler implements Runnable{
                             key = new String(commandParts.get(1), StandardCharsets.UTF_8);
                             String idStr = new String(commandParts.get(2), StandardCharsets.UTF_8);
 
-                            // 解析 ID
-                            String[] idParts = idStr.split("-");
-                            long timestamp = Long.parseLong(idParts[0]);
-                            int sequence = Integer.parseInt(idParts[1]);
-                            StreamEntryID id = new StreamEntryID(timestamp, sequence);
+                            long timestamp;
+                            int sequence;
 
-                            //解析新格式的ID
-                            if(idStr.endsWith("-*")){
-                                timestamp=Long.parseLong(idStr.substring(0,idStr.length()-2));
-                                sequence=-1;
-                            }else {
-                                timestamp=Long.parseLong(idParts[0]);
-                                sequence=Integer.parseInt(idParts[1]);
+                            // **关键修复**：必须先判断ID格式，再进行解析
+                            if (idStr.endsWith("-*")) {
+                                // 这是自动生成序列号的情况
+                                timestamp = Long.parseLong(idStr.substring(0, idStr.length() - 2));
+                                sequence = -1; // -1 是我们传递给 DataStore 用于自动生成的标志
+                            } else {
+                                // 这是用户提供了完整 ID 的情况
+                                String[] idParts = idStr.split("-");
+                                timestamp = Long.parseLong(idParts[0]);
+                                sequence = Integer.parseInt(idParts[1]);
                             }
 
-                            // 解析所有键值对
+                            // 解析所有键值对 (这部分逻辑是正确的，保持不变)
                             Map<String, byte[]> fields = new HashMap<>();
                             for (int i = 3; i < commandParts.size(); i += 2) {
                                 String fieldKey = new String(commandParts.get(i), StandardCharsets.UTF_8);
@@ -321,14 +321,13 @@ public class ClientHandler implements Runnable{
                             }
 
                             // 调用 DataStore 的核心逻辑
-                            StreamEntryID resultId = DataStore.xadd(key, timestamp,sequence, fields);
+                            StreamEntryID resultId = DataStore.xadd(key, timestamp, sequence, fields);
 
                             // 返回 Bulk String 格式的 ID
                             String resultIdStr = resultId.toString();
                             outputStream.write(('$' + String.valueOf(resultIdStr.length()) + "\r\n").getBytes());
                             outputStream.write(resultIdStr.getBytes());
                             outputStream.write("\r\n".getBytes());
-
                         } catch (NumberFormatException e) {
                             outputStream.write("-ERR Invalid stream ID specified as XADD argument\r\n".getBytes());
                         } catch (Exception e) {
