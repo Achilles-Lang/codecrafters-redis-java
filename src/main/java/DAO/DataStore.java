@@ -75,7 +75,7 @@ public class DataStore {
      * @param valuesToPush 要添加的元素
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1。
      */
-    public static int lpush(String key, List<byte[]> valuesToPush) {
+    public static int lpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
         synchronized (lock) {
             Object existingValue = map.get(key);
 
@@ -87,15 +87,9 @@ public class DataStore {
                 map.put(key, list);
             } else if (existingValue instanceof List) {
                 // 如果已存在的是 ArrayList，为了效率创建一个新的 LinkedList
-                if (!(existingValue instanceof LinkedList)) {
-                    list = new LinkedList<>( (List<byte[]>) existingValue );
-                    map.put(key, list);
-                } else {
-                    list = (LinkedList<byte[]>) existingValue;
-                }
+                list= (LinkedList<byte[]>) existingValue;
             } else {
-                // 如果 key 存在但不是列表，返回错误码
-                return -1;
+                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
             }
             // 遍历要插入的元素，逐个添加到列表头部
             // LPUSH a b c -> 列表最终是 [c, b, a, ...]
@@ -178,8 +172,8 @@ public class DataStore {
 
             // --- 超时阻塞逻辑 ---
             long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
-
-            while (true) { // 使用无限循环，退出条件在内部处理
+            LinkedList<byte[]> getList=(LinkedList<byte[]>) map.get(key);
+            while (list==null || list.isEmpty()) { // 使用无限循环，退出条件在内部处理
                 // 重新获取 list，因为它的引用可能在等待期间改变
                 value = map.get(key);
                 if (value instanceof List) {
@@ -203,14 +197,16 @@ public class DataStore {
                 } else {
                     lock.wait(); // 无限期等待
                 }
+                Object valueAfterWait = map.get(key);
+                if(valueAfterWait!=null&&!(valueAfterWait instanceof List)){
+                    throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+
+                }
+                list=(LinkedList<byte[]>) valueAfterWait;
             }
 
-            // 跳出循环后，list 肯定非空
-            byte[] poppedValue = list.removeFirst();
-            if (list.isEmpty()) {
-                // map.remove(key); // 可选
-            }
-            return poppedValue;
+
+            return list.removeFirst();
         }
     }
 
