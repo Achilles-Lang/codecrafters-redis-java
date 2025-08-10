@@ -299,28 +299,18 @@ public class ClientHandler implements Runnable{
 
                             long timestamp;
                             int sequence;
-                            //增加对*的判断
-                            if("*".equals(idStr)){
-                                //使用-1来告诉DataStore需要全自动生成ID
-                                timestamp=-1;
-                                sequence=-1;
-                            } else if (idStr.endsWith("-*")) {
-                                timestamp = Long.parseLong(idStr.substring(0, idStr.length() - 2));
+
+                            // **关键修复**：将对 "*" 的判断放在最前面
+                            if ("*".equals(idStr)) {
+                                // 情况3: 完全自动生成 ("*")
+                                timestamp = -1; // 使用 -1 作为全自动生成的标志
                                 sequence = -1;
-
-                            }else {
-                                String[] idParts = idStr.split("-");
-                                timestamp = Long.parseLong(idParts[0]);
-                                sequence = Integer.parseInt(idParts[1]);
-                            }
-
-                            // **关键修复**：必须先判断ID格式，再进行解析
-                            if (idStr.endsWith("-*")) {
-                                // 这是自动生成序列号的情况
+                            } else if (idStr.endsWith("-*")) {
+                                // 情况2: 部分自动生成 ("timestamp-*")
                                 timestamp = Long.parseLong(idStr.substring(0, idStr.length() - 2));
-                                sequence = -1; // -1 是我们传递给 DataStore 用于自动生成的标志
+                                sequence = -1; // -1 作为自动生成序列号的标志
                             } else {
-                                // 这是用户提供了完整 ID 的情况
+                                // 情况1: 提供了完整 ID ("timestamp-sequence")
                                 String[] idParts = idStr.split("-");
                                 timestamp = Long.parseLong(idParts[0]);
                                 sequence = Integer.parseInt(idParts[1]);
