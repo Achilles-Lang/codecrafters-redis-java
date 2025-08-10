@@ -288,31 +288,31 @@ public class DataStore {
             StreamEntryID lastId = stream.getLastId();
             StreamEntryID finalId;
 
-            // --- ID 生成与验证逻辑 ---
             if (reqSequence != -1) {
-                // --- 情况1：用户提供了完整的 ID (e.g., "123-45") ---
+                // 用户提供了完整 ID
                 finalId = new StreamEntryID(reqTimestamp, reqSequence);
             } else {
-                // --- 情况2：用户请求自动生成序列号 (e.g., "123-*") ---
+                // 用户请求自动生成序列号 ("*")
                 long finalTimestamp = reqTimestamp;
                 int finalSequence;
 
                 if (lastId != null && finalTimestamp < lastId.timestamp) {
-                    // 规则3：提供的时间戳不能小于最后一个ID的时间戳
                     throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
                 }
 
                 if (lastId != null && finalTimestamp == lastId.timestamp) {
-                    // 时间戳相同，序列号加 1
                     finalSequence = lastId.sequence + 1;
                 } else {
-                    // 时间戳更大，或流为空，序列号从 0 开始
-                    finalSequence=(finalTimestamp==0)?1:0;
+                    // **关键修复点**
+                    // 如果时间戳是 0 (并且流为空或时间戳是新的)，序列号必须从 1 开始
+                    // 否则，它可以从 0 开始
+                    finalSequence = (finalTimestamp == 0) ? 1 : 0;
                 }
                 finalId = new StreamEntryID(finalTimestamp, finalSequence);
             }
 
-            return finalId;
+            // 调用 RedisStream.add 进行最终验证和添加
+            return stream.add(finalId, fields);
         }
     }
 
