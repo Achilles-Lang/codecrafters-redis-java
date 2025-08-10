@@ -292,15 +292,6 @@ public class DataStore {
             if (reqSequence != -1) {
                 // --- 情况1：用户提供了完整的 ID (e.g., "123-45") ---
                 finalId = new StreamEntryID(reqTimestamp, reqSequence);
-
-                // 规则1：ID 不能是 0-0
-                if (finalId.timestamp == 0 && finalId.sequence == 0) {
-                    throw new Exception("The ID specified in XADD must be greater than 0-0");
-                }
-                // 规则2：新 ID 必须大于最后一个 ID
-                if (lastId != null && finalId.compareTo(lastId) <= 0) {
-                    throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
-                }
             } else {
                 // --- 情况2：用户请求自动生成序列号 (e.g., "123-*") ---
                 long finalTimestamp = reqTimestamp;
@@ -316,13 +307,11 @@ public class DataStore {
                     finalSequence = lastId.sequence + 1;
                 } else {
                     // 时间戳更大，或流为空，序列号从 0 开始
-                    finalSequence = 0;
+                    finalSequence=(finalTimestamp==0)?1:0;
                 }
                 finalId = new StreamEntryID(finalTimestamp, finalSequence);
             }
 
-            StreamEntry newEntry = new StreamEntry(finalId, fields);
-            stream.add(newEntry); // 此处的 add 现在只负责添加
             return finalId;
         }
     }
