@@ -299,6 +299,20 @@ public class ClientHandler implements Runnable{
 
                             long timestamp;
                             int sequence;
+                            //增加对*的判断
+                            if("*".equals(idStr)){
+                                //使用-1来告诉DataStore需要全自动生成ID
+                                timestamp=-1;
+                                sequence=-1;
+                            } else if (idStr.endsWith("-*")) {
+                                timestamp = Long.parseLong(idStr.substring(0, idStr.length() - 2));
+                                sequence = -1;
+
+                            }else {
+                                String[] idParts = idStr.split("-");
+                                timestamp = Long.parseLong(idParts[0]);
+                                sequence = Integer.parseInt(idParts[1]);
+                            }
 
                             // **关键修复**：必须先判断ID格式，再进行解析
                             if (idStr.endsWith("-*")) {

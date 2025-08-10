@@ -288,36 +288,34 @@ public class DataStore {
             StreamEntryID lastId = stream.getLastId();
             StreamEntryID finalId;
 
-            // --- ID 生成与验证逻辑 ---
-            if (reqSequence != -1) {
-                // --- 情况1：用户提供了完整的 ID (e.g., "123-45") ---
-                finalId = new StreamEntryID(reqTimestamp, reqSequence);
-
-            } else {
-                // --- 情况2：用户请求自动生成序列号 (e.g., "123-*") ---
+            if(reqTimestamp==-1&&reqSequence==-1){
+                long newTimestamp = System.currentTimeMillis();
+                int newSequence =0;
+                if(lastId!=null&&newTimestamp<=lastId.timestamp){
+                    newSequence = lastId.sequence+1;
+                    newTimestamp=lastId.timestamp;
+                }
+                finalId=new StreamEntryID(newTimestamp,newSequence);
+            } else if (reqSequence == -1) {
+                // --- 情况2：部分自动生成 ID ("timestamp-*") ---
                 long finalTimestamp = reqTimestamp;
                 int finalSequence;
 
                 if (lastId != null && finalTimestamp < lastId.timestamp) {
                     throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
                 }
-
                 if (lastId != null && finalTimestamp == lastId.timestamp) {
                     finalSequence = lastId.sequence + 1;
                 } else {
-                    // **这是最关键的逻辑**
-                    // 如果时间戳大于 0，或者流是空的但时间戳大于0，序列号从 0 开始。
-                    // 只有当流是空的并且时间戳也是 0 时，序列号才必须从 1 开始，以避免非法的 "0-0"。
-                    if (finalTimestamp == 0) {
-                        finalSequence = (lastId == null) ? 1 : 0; // 如果是新流，从1开始；否则可以从0开始
-                    } else {
-                        finalSequence = 0;
-                    }
+                    finalSequence = (finalTimestamp == 0 && lastId == null) ? 1 : 0;
                 }
                 finalId = new StreamEntryID(finalTimestamp, finalSequence);
+            } else {
+                // --- 情况1：用户提供了完整的 ID ---
+                finalId = new StreamEntryID(reqTimestamp, reqSequence);
             }
 
-            // 生成 ID 后，调用 stream.add 进行最终验证和添加
+            // 调用 RedisStream.add 进行最终验证和添加
             return stream.add(finalId, fields);
         }
     }
