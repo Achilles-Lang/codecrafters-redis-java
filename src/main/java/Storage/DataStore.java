@@ -165,7 +165,7 @@ public class DataStore {
             // --- 超时阻塞逻辑 ---
             long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
             LinkedList<byte[]> getList=(LinkedList<byte[]>) map.get(key);
-            while (list==null || list.isEmpty()) { // 使用无限循环，退出条件在内部处理
+            while (getList==null || getList.isEmpty()) { // 使用无限循环，退出条件在内部处理
                 // 重新获取 list，因为它的引用可能在等待期间改变
                 value = map.get(key);
                 if (value instanceof List) {

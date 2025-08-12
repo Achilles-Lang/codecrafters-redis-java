@@ -15,6 +15,10 @@ public class RpushCommand implements Command {
         }
         String key = new String(args.get(0), StandardCharsets.UTF_8);
         List<byte[]> values = args.subList(1, args.size());
-        return DataStore.getInstance().rpush(key, values);
+        try {
+            return DataStore.getInstance().rpush(key, values);
+        } catch (WrongTypeException e) {
+            return e;
+        }
     }
 }
