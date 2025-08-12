@@ -11,9 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class DataStore {
     private static final DataStore instance = new DataStore();
-    //新增一个全局锁对象
-    private final Object lock = new Object();
-    //存储
+
     private final Map<String, Object> map = new ConcurrentHashMap<>();
 
     private  DataStore(){}
@@ -65,7 +63,7 @@ public class DataStore {
             }
 
             list.addAll(valuesToPush);
-            lock.notifyAll();
+            this.notifyAll();
             return list.size();
     }
     /**
@@ -96,7 +94,7 @@ public class DataStore {
                 // LinkedList.addFirst() 是 O(1) 操作，效率很高
                 list.addFirst(value);
             }
-            lock.notifyAll();
+            this.notifyAll();
             return list.size();
     }
     /**
@@ -185,9 +183,9 @@ public class DataStore {
                     if (remainingTime <= 0) {
                         return null; // 时间到了，列表仍然是空的，超时返回 null
                     }
-                    lock.wait(remainingTime);
+                    this.wait(remainingTime);
                 } else {
-                    lock.wait(); // 无限期等待
+                    this.wait(); // 无限期等待
                 }
                 Object valueAfterWait = map.get(key);
                 if(valueAfterWait!=null&&!(valueAfterWait instanceof List)){
