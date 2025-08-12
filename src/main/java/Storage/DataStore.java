@@ -12,9 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DataStore {
     private static final DataStore instance = new DataStore();
     //新增一个全局锁对象
-    private static final Object lock = new Object();
+    private final Object lock = new Object();
     //存储
-    private static final Map<String, Object> map = new ConcurrentHashMap<>();
+    private final Map<String, Object> map = new ConcurrentHashMap<>();
 
     private  DataStore(){}
 
@@ -22,13 +22,11 @@ public class DataStore {
         return instance;
     }
     // --- 字符串操作 ---
-    public static void setString(String key, ValueEntry value) {
-        synchronized (lock) {
+    public synchronized void setString(String key, ValueEntry value) {
             map.put(key, value);
-        }
     }
 
-    public static ValueEntry getString(String key) {
+    public synchronized ValueEntry getString(String key) {
         Object value = map.get(key);
         // 在获取时检查类型
         if (value instanceof ValueEntry) {
@@ -50,7 +48,7 @@ public class DataStore {
      * 如果 key 不存在，则创建新列表。
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1 (错误码)。
      */
-    public static int rpush(String key, List<byte[]> valuesToPush) {
+    public synchronized int rpush(String key, List<byte[]> valuesToPush) {
         synchronized (lock) {
             Object value = map.get(key);
             List<byte[]> list;
@@ -79,7 +77,7 @@ public class DataStore {
      * @param valuesToPush 要添加的元素
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1。
      */
-    public static int lpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
+    public synchronized int lpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
         synchronized (lock) {
             Object existingValue = map.get(key);
 
@@ -114,7 +112,7 @@ public class DataStore {
      * @return 被移除的元素列表。如果 key 不存在，返回 null。如果 key 存在但列表为空，返回空列表。
      * @throws WrongTypeException 如果 key 存在但不是列表类型。
      */
-    public static List<byte[]> lpop(String key,int count) throws WrongTypeException {
+    public synchronized List<byte[]> lpop(String key,int count) throws WrongTypeException {
         synchronized (lock) {
             Object value = map.get(key);
 
@@ -153,7 +151,7 @@ public class DataStore {
      * @throws WrongTypeException 如果 key 存在但不是列表。
      * @throws InterruptedException 如果线程在等待时被中断。
      */
-    public static byte[] blpop(String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
+    public synchronized byte[] blpop(String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
         synchronized (lock) {
             Object value = map.get(key);
             // 在进入循环前，先检查一次类型是否正确
@@ -222,7 +220,7 @@ public class DataStore {
      * @return 包含范围内元素的列表。如果 key 不存在，返回空列表。
      * @throws WrongTypeException 如果 key 对应的值不是列表。
      */
-    public static List<byte[]> lrange(String key, int start, int end) throws WrongTypeException {
+    public synchronized List<byte[]> lrange(String key, int start, int end) throws WrongTypeException {
         Object value = map.get(key);
 
         // 1. 如果 key 不存在，根据 Redis 规范返回一个空列表
@@ -333,7 +331,7 @@ public class DataStore {
      * @return 列表的长度。如果 key 不存在，返回 0。
      * @throws WrongTypeException 如果 key 存在但不是列表类型。
      */
-    public static int llen(String key) throws WrongTypeException {
+    public synchronized int llen(String key) throws WrongTypeException {
         Object value = map.get(key);
 
         // 情况 2: key 不存在，返回 0
@@ -356,7 +354,7 @@ public class DataStore {
      * @param key 要检查的 key
      * @return 代表类型的字符串 ("string", "list", "none")。
      */
-    public static String getType(String key) {
+    public synchronized String getType(String key) {
         Object value = map.get(key);
 
         // 情况 1: key 不存在
@@ -387,7 +385,7 @@ public class DataStore {
      * @return 包含符合条件条目的列表。如果 key 不存在，返回空列表。
      * @throws WrongTypeException 如果 key 对应的值不是 Stream。
      */
-    public List<StreamEntry> xrange(String key, StreamEntryID startId, StreamEntryID endId) throws WrongTypeException {
+    public synchronized List<StreamEntry> xrange(String key, StreamEntryID startId, StreamEntryID endId) throws WrongTypeException {
         synchronized (lock) { // 确保在读取时数据不会被其他线程修改
             Object value = map.get(key);
 
