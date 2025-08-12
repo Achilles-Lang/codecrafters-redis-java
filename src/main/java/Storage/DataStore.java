@@ -260,6 +260,8 @@ public class DataStore {
      * @throws Exception 如果发生错误
      */
     public synchronized StreamEntryID xadd(String key, long reqTimestamp, int reqSequence, Map<String, byte[]> fields) throws Exception {
+        System.out.println("[DEBUG] DataStore: Entering xadd method.");
+
         Object value = map.get(key);
         RedisStream stream;
 
