@@ -34,8 +34,8 @@ public class BlpopCommand implements Command {
             }
 
         } catch (NumberFormatException e) {
-            return new Exception("value is not an integer or out of range");
-        } catch (WrongTypeException | InterruptedException e) {
+            return new Exception("timeout is not a valid float");
+        } catch (Exception e) {
             return e;
         }    }
 }
