@@ -26,6 +26,7 @@ public class CommandHandler {
         commandMap.put("lrange",new LrangeCommand());
         commandMap.put("xadd",new XaddCommand());
         commandMap.put("xrange",new XrangeCommand());
+        commandMap.put("blpop",new BlpopCommand());
     }
     public Command getCommand(String commandName)
     {
