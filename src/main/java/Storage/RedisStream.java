@@ -39,4 +39,7 @@ public class RedisStream {
         }
         return entries.get(entries.size()-1).id;
     }
+    public List<StreamEntry> getEntries(){
+        return this.entries;
+    }
 }

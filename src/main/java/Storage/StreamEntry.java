@@ -7,8 +7,8 @@ import java.util.Map;
  * 用于表示Stream中的一个条目
  */
 public class StreamEntry {
-    final StreamEntryID id;
-    final Map<String,byte[]> fields;
+    public final StreamEntryID id;
+    public final Map<String,byte[]> fields;
 
     public StreamEntry(StreamEntryID id, Map<String, byte[]> fields) {
         this.id = id;

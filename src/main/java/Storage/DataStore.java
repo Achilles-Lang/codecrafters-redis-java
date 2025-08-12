@@ -375,7 +375,39 @@ public class DataStore {
         } else if (value instanceof RedisStream) {
             return "stream";
         }
-
         return "unknown"; // 理论上不应该发生
+    }
+    /**
+     * 查询 Stream 中在指定 ID 范围内的条目。
+     * @param key Stream 的 key
+     * @param startId 起始 ID (包含)
+     * @param endId 结束 ID (包含)
+     * @return 包含符合条件条目的列表。如果 key 不存在，返回空列表。
+     * @throws WrongTypeException 如果 key 对应的值不是 Stream。
+     */
+    public List<StreamEntry> xrange(String key, StreamEntryID startId, StreamEntryID endId) throws WrongTypeException {
+        synchronized (lock) { // 确保在读取时数据不会被其他线程修改
+            Object value = map.get(key);
+
+            if (value == null) {
+                return new ArrayList<>();
+            }
+
+            if (!(value instanceof RedisStream)) {
+                throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+            }
+
+            RedisStream stream = (RedisStream) value;
+            List<StreamEntry> results = new ArrayList<>();
+
+            // 因为 Stream 条目是按 ID 排序的，直接遍历即可
+            for (StreamEntry entry : stream.getEntries()) {
+                // 检查 entry.id 是否在 [startId, endId] 区间内
+                if (entry.id.compareTo(startId) >= 0 && entry.id.compareTo(endId) <= 0) {
+                    results.add(entry);
+                }
+            }
+            return results;
+        }
     }
 }
