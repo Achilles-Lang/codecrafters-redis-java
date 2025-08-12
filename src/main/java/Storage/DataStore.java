@@ -48,8 +48,7 @@ public class DataStore {
      * 如果 key 不存在，则创建新列表。
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1 (错误码)。
      */
-    public synchronized int rpush(String key, List<byte[]> valuesToPush) {
-        synchronized (lock) {
+    public synchronized int rpush(String key, List<byte[]> valuesToPush) throws  WrongTypeException{
             Object value = map.get(key);
             List<byte[]> list;
 
@@ -62,14 +61,12 @@ public class DataStore {
                 list = (List<byte[]>) value;
             } else {
                 // 如果 key 存在但不是列表，返回错误码
-                return -1;
+                throw new WrongTypeException("Operation against a key holding the wrong kind of value");
             }
 
             list.addAll(valuesToPush);
             lock.notifyAll();
             return list.size();
-        }
-
     }
     /**
      * 将一个或多个值推入列表头部。
@@ -78,7 +75,6 @@ public class DataStore {
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1。
      */
     public synchronized int lpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
-        synchronized (lock) {
             Object existingValue = map.get(key);
 
             LinkedList<byte[]> list;
@@ -102,8 +98,6 @@ public class DataStore {
             }
             lock.notifyAll();
             return list.size();
-        }
-
     }
     /**
      * 从列表左侧（头部）移除并返回指定数量的元素
@@ -113,7 +107,6 @@ public class DataStore {
      * @throws WrongTypeException 如果 key 存在但不是列表类型。
      */
     public synchronized List<byte[]> lpop(String key,int count) throws WrongTypeException {
-        synchronized (lock) {
             Object value = map.get(key);
 
             // 情况 2: key 不存在，返回 null (代表 NIL)
@@ -139,8 +132,6 @@ public class DataStore {
             // 情况 1: 列表不为空，移除并返回第一个元素
             // LinkedList.removeFirst() 是 O(1) 操作，效率很高
             return poppedElements;
-        }
-
     }
 
     /**
@@ -152,7 +143,6 @@ public class DataStore {
      * @throws InterruptedException 如果线程在等待时被中断。
      */
     public synchronized byte[] blpop(String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
-        synchronized (lock) {
             Object value = map.get(key);
             // 在进入循环前，先检查一次类型是否正确
             if (value != null && !(value instanceof List)) {
@@ -207,9 +197,7 @@ public class DataStore {
                 list=(LinkedList<byte[]>) valueAfterWait;
             }
 
-
             return list.removeFirst();
-        }
     }
 
     /**
@@ -386,7 +374,6 @@ public class DataStore {
      * @throws WrongTypeException 如果 key 对应的值不是 Stream。
      */
     public synchronized List<StreamEntry> xrange(String key, StreamEntryID startId, StreamEntryID endId) throws WrongTypeException {
-        synchronized (lock) { // 确保在读取时数据不会被其他线程修改
             Object value = map.get(key);
 
             if (value == null) {
@@ -408,6 +395,5 @@ public class DataStore {
                 }
             }
             return results;
-        }
     }
 }
