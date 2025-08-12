@@ -4,6 +4,7 @@ import Storage.StreamEntryID;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -11,7 +12,7 @@ import java.util.List;
  * RESP 响应编码器
  */
 public class RespEncoder {
-    public static void encode(OutputStream os, Object result) throws IOException, IOException {
+    public static void encode(OutputStream os, Object result) throws IOException {
         if (result == null) {
             os.write("$-1\r\n".getBytes()); // NIL Bulk String
         } else if (result instanceof String) {
@@ -32,7 +33,7 @@ public class RespEncoder {
             }
         } else if (result instanceof StreamEntryID) {
             String idStr = result.toString();
-            encode(os, idStr.getBytes());
+            encode(os, idStr.getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof Exception) {
             os.write(("-ERR " + ((Exception) result).getMessage() + "\r\n").getBytes());
         }

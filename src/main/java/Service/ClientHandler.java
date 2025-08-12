@@ -45,13 +45,14 @@ public class ClientHandler implements Runnable{
                 List<byte[]> args=commandParts.subList(1, commandParts.size());
 
                 Command command=commandHandler.getCommand(commandName);
-
+                Object result;
                 if(command==null) {
-                    outputStream.write(("-ERR unknown command '" + commandName + "'\r\n").getBytes());
+                    result = new Exception("unknown command '" + commandName + "'");
                 }else{
-                    Object result=command.execute(args);
-                    sendResponse(outputStream,result);
+                    result = command.execute(args);
+
                 }
+                RespEncoder.encode(outputStream, result);
                 outputStream.flush();
             }
         } catch (IOException e) {
