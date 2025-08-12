@@ -144,7 +144,7 @@ public class DataStore {
         long deadLine=(timeoutSeconds>0)?(System.currentTimeMillis()+(long)(timeoutSeconds*1000)):0;
         while(true){
             Object value=map.get(key);
-            if(value!=null&&!(value instanceof LinkedList) ){
+            if(value!=null&&!(value instanceof List) ){
                 throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
             }
             LinkedList<byte[]> list=(LinkedList<byte[]>)value;
