@@ -275,54 +275,56 @@ public class DataStore {
      * @return 成功添加后返回条目的最终 ID
      * @throws Exception 如果发生错误
      */
-    public static StreamEntryID xadd(String key, long reqTimestamp, int reqSequence, Map<String, byte[]> fields) throws Exception {
-        synchronized (lock) {
-            Object value = map.get(key);
-            RedisStream stream;
+    public synchronized StreamEntryID xadd(String key, long reqTimestamp, int reqSequence, Map<String, byte[]> fields) throws Exception {
+        Object value = map.get(key);
+        RedisStream stream;
 
-            if (value == null) {
-                stream = new RedisStream();
-                map.put(key, stream);
-            } else if (value instanceof RedisStream) {
-                stream = (RedisStream) value;
-            } else {
-                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
-            }
-
-            StreamEntryID lastId = stream.getLastId();
-            StreamEntryID finalId;
-
-            if(reqTimestamp==-1&&reqSequence==-1){
-                long newTimestamp = System.currentTimeMillis();
-                int newSequence =0;
-                if(lastId!=null&&newTimestamp<=lastId.timestamp){
-                    newSequence = lastId.sequence+1;
-                    newTimestamp=lastId.timestamp;
-                }
-                finalId=new StreamEntryID(newTimestamp,newSequence);
-            }
-            else if (reqSequence == -1) {
-                // --- 情况2：部分自动生成 ID ("timestamp-*") ---
-                long finalTimestamp = reqTimestamp;
-                int finalSequence;
-
-                if (lastId != null && finalTimestamp < lastId.timestamp) {
-                    throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
-                }
-                if (lastId != null && finalTimestamp == lastId.timestamp) {
-                    finalSequence = lastId.sequence + 1;
-                } else {
-                    finalSequence = (finalTimestamp == 0 && lastId == null) ? 1 : 0;
-                }
-                finalId = new StreamEntryID(finalTimestamp, finalSequence);
-            } else {
-                // --- 情况1：用户提供了完整的 ID ---
-                finalId = new StreamEntryID(reqTimestamp, reqSequence);
-            }
-
-            // 调用 RedisStream.add 进行最终验证和添加
-            return stream.add(finalId, fields);
+        if (value == null) {
+            stream = new RedisStream();
+            map.put(key, stream);
+        } else if (value instanceof RedisStream) {
+            stream = (RedisStream) value;
+        } else {
+            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
         }
+
+        StreamEntryID lastId = stream.getLastId();
+        StreamEntryID finalId;
+
+        if (reqTimestamp == -1 && reqSequence == -1) {
+            // --- 情况3: 完全自动生成 ID ("*") ---
+            long newTimestamp = System.currentTimeMillis();
+            int newSequence = 0;
+
+            // **关键修复**: 使用正确的字段名 "timeStamp"
+            if (lastId != null && newTimestamp <= lastId.timestamp) {
+                newTimestamp = lastId.timestamp;
+                newSequence = lastId.sequence + 1;
+            }
+            finalId = new StreamEntryID(newTimestamp, newSequence);
+
+        } else if (reqSequence == -1) {
+            // --- 情况2: 部分自动生成 ID ("timestamp-*") ---
+            long finalTimestamp = reqTimestamp;
+            int finalSequence;
+
+            // **关键修复**: 使用正确的字段名 "timeStamp"
+            if (lastId != null && finalTimestamp < lastId.timestamp) {
+                throw new Exception("The ID specified in XADD is equal or smaller than the target stream top item");
+            }
+            if (lastId != null && finalTimestamp == lastId.timestamp) {
+                finalSequence = lastId.sequence + 1;
+            } else {
+                finalSequence = (finalTimestamp == 0 && lastId == null) ? 1 : 0;
+            }
+            finalId = new StreamEntryID(finalTimestamp, finalSequence);
+        } else {
+            // --- 情况1：用户提供了完整的 ID ---
+            finalId = new StreamEntryID(reqTimestamp, reqSequence);
+        }
+
+        // 调用 RedisStream.add 进行最终验证和添加
+        return stream.add(finalId, fields);
     }
 
     /**

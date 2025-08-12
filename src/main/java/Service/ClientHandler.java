@@ -63,23 +63,22 @@ public class ClientHandler implements Runnable{
 
     }
     //用于将Java对象编码成RESP字符串
-    private void sendResponse(OutputStream outputStream, Object result) throws IOException {if (result == null) {
-        outputStream.write("$-1\r\n".getBytes()); // NIL Bulk String
-    } else if (result instanceof String) {
-        outputStream.write(("+" + result + "\r\n").getBytes()); // Simple String
-    } else if (result instanceof byte[]) {
-        byte[] arr = (byte[]) result;
-        outputStream.write(('$' + String.valueOf(arr.length) + "\r\n").getBytes());
-        outputStream.write(arr);
-        outputStream.write("\r\n".getBytes());
-    } else if (result instanceof Long || result instanceof Integer) {
+    private void sendResponse(OutputStream outputStream, Object result) throws IOException {
+        if (result == null) {
+            outputStream.write("$-1\r\n".getBytes()); // NIL Bulk String
+        } else if (result instanceof String) {
+            outputStream.write(("+" + result + "\r\n").getBytes()); // Simple String
+        } else if (result instanceof byte[]) {
+            byte[] arr = (byte[]) result;
+            outputStream.write(('$' + String.valueOf(arr.length) + "\r\n").getBytes());
+            outputStream.write(arr);
+            outputStream.write("\r\n".getBytes());
+        } else if (result instanceof Long || result instanceof Integer) {
         outputStream.write((":" + result + "\r\n").getBytes()); // Integer
-    } else if (result instanceof List) {
+        } else if (result instanceof List) {
         // ... 编码数组的逻辑 ...
-    } else if (result instanceof Exception) {
-        outputStream.write(("-ERR " + ((Exception) result).getMessage() + "\r\n").getBytes()); // Error
+        } else if (result instanceof Exception) {
+            outputStream.write(("-ERR " + ((Exception) result).getMessage() + "\r\n").getBytes()); // Error
+        }
     }
-    }
-
-
 }

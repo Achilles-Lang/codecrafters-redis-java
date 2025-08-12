@@ -8,6 +8,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @author Achilles
+ */
 public class XaddCommand implements Command {
     @Override
     public Object execute(List<byte[]> args) {
