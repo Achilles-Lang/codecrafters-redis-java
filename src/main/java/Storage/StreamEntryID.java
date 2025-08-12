@@ -1,4 +1,4 @@
-package DAO;
+package Storage;
 
 /**
  * @author Achilles
@@ -6,8 +6,8 @@ package DAO;
  */
 public class StreamEntryID implements Comparable<StreamEntryID>{
 
-    final long timestamp;
-    final int sequence;
+    public final long timestamp;
+    public final int sequence;
 
     public StreamEntryID(long timestamp, int sequence) {
         this.timestamp = timestamp;

@@ -1,4 +1,4 @@
-package Utils;
+package Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -6,7 +6,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
+/**
+ * RESP 请求解析器
+ * */
 public class Protocol {
     private final InputStream inputStream;
 

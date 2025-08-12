@@ -1,13 +1,12 @@
-package DAO;
+package Storage;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * @author Achilles
- * 用于表示整个Stream数据结构
+ * 数据模型：Stream
  */
 public class RedisStream {
     private final List<StreamEntry> entries=new ArrayList<>();

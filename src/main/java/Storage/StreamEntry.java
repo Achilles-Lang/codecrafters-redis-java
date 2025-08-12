@@ -1,4 +1,4 @@
-package DAO;
+package Storage;
 
 import java.util.Map;
 

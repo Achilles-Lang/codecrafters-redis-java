@@ -1,4 +1,4 @@
-package DAO;
+package Storage;
 
 import Config.WrongTypeException;
 
@@ -7,16 +7,20 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Achilles
+ * 单例，管理所有内存数据
  */
 public class DataStore {
-
+    private static final DataStore instance = new DataStore();
     //新增一个全局锁对象
     private static final Object lock = new Object();
-
-
-    // 使用 Object 作为值，以存储 ValueEntry (字符串) 或 List<byte[]> (列表) 等
+    //存储
     private static final Map<String, Object> map = new ConcurrentHashMap<>();
 
+    private  DataStore(){}
+
+    public static DataStore getInstance(){
+        return instance;
+    }
     // --- 字符串操作 ---
     public static void setString(String key, ValueEntry value) {
         synchronized (lock) {
@@ -296,7 +300,8 @@ public class DataStore {
                     newTimestamp=lastId.timestamp;
                 }
                 finalId=new StreamEntryID(newTimestamp,newSequence);
-            } else if (reqSequence == -1) {
+            }
+            else if (reqSequence == -1) {
                 // --- 情况2：部分自动生成 ID ("timestamp-*") ---
                 long finalTimestamp = reqTimestamp;
                 int finalSequence;

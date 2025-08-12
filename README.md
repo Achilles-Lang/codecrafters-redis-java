@@ -144,10 +144,10 @@ public class Main {
 - 而接待员将客人交给服务员后，继续在门口等待下一位客人。
 - 而服务员需要干的事，就是上一阶段的任务。
 - 基于上面的猜测，我们需要对代码进行修改：
-   - 创建一个`Controller.ClientHandler`类，这个类实现了Runnable接口，作用是”服务员“。
+   - 创建一个`Service.ClientHandler`类，这个类实现了Runnable接口，作用是”服务员“。
    - 修改main方法，让他当好接待员。
      代码：
-- Controller.ClientHandler.java
+- Service.ClientHandler.java
 ``` java
 import java.io.IOException;  
 import java.io.InputStream;  
@@ -157,11 +157,11 @@ import java.net.Socket;
   
 /**  
  * @author Achilles  
- */public class Controller.ClientHandler implements Runnable{  
+ */public class Service.ClientHandler implements Runnable{  
   
     private Socket clientSocket;  
   
-    public Controller.ClientHandler(Socket socket) {  
+    public Service.ClientHandler(Socket socket) {  
         this.clientSocket = socket;  
     }  
   
@@ -222,7 +222,7 @@ public class Main {
                 System.out.println("Accepted new connection from " + clientSocket.getRemoteSocketAddress());  
   
                 //为进来的客户端创建一个线程来处理PING  
-                Thread clientThread = new Thread(new Controller.ClientHandler(clientSocket));  
+                Thread clientThread = new Thread(new Service.ClientHandler(clientSocket));  
   
                 //启动线程，让线程来响应PING  
                 clientThread.start();  
@@ -256,7 +256,7 @@ redis 127.0.0.1:6379> ECHO "Hello World"
 1. 为什么要有 Redis 协议解析器？(The "Why")
    - 简单来说，因为网络传输的本质是**无差别、无结构的字节流（Byte Stream）**。
    - 而一个真正的Redis服务器必须能看懂命令，在之前的阶段，我们能够回复`+PONG\r\n`，是因为我们根本不管测试内容，只要吱一声我们就默认是PING。
-   - 而当客户端发送一个命令时，它不会直接以这个字符串的形式发送。它会遵循一种叫做 **RESP (REdis Serialization Utils.Protocol)** 的格式，类似：`*4\r\n$3\r\nSET\r\n$7\r\nuser:1\r\n$4\r\nname\r\n$5\r\nAlice\r\n`。
+   - 而当客户端发送一个命令时，它不会直接以这个字符串的形式发送。它会遵循一种叫做 **RESP (REdis Serialization Service.Protocol)** 的格式，类似：`*4\r\n$3\r\nSET\r\n$7\r\nuser:1\r\n$4\r\nname\r\n$5\r\nAlice\r\n`。
    - 而Redis协议解析器的根本目的就是看懂这串天书，即：将无结构、无意义的字节流，翻译成程序可以理解和执行的、有结构的数据（比如，一个包含命令和参数的列表 `["SET", "user:1", "name", "Alice"]`）。
    - 是的，就是一个翻译。
 2. 如何实现？(The "How")
@@ -284,10 +284,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;  
 import java.util.List;  
   
-public class Utils.Protocol {  
+public class Service.Protocol {  
     private final InputStream inputStream;  
   
-    public Utils.Protocol(InputStream inputStream) {  
+    public Service.Protocol(InputStream inputStream) {  
         this.inputStream = inputStream;  
     }  
     /*  
@@ -374,7 +374,7 @@ public class Utils.Protocol {
 ### tests
 接下来，运用简单版本的协议，来对输入流进行解析。
 - Main.java：不用修改，继续当接待员。
-- Controller.ClientHandler.java：处理事务，需要修改，使用Protocol来处理命令。
+- Service.ClientHandler.java：处理事务，需要修改，使用Protocol来处理命令。
    - 对输入数据流，要判断是不是指令，是什么指令，该指令要我们干什么。
 ``` java
 import javax.swing.text.html.parser.Parser;  
@@ -388,11 +388,11 @@ import java.util.List;
   
 /**  
  * @author Achilles  
- */public class Controller.ClientHandler implements Runnable{  
+ */public class Service.ClientHandler implements Runnable{  
   
     private final Socket clientSocket;  
   
-    public Controller.ClientHandler(Socket socket) {  
+    public Service.ClientHandler(Socket socket) {  
         this.clientSocket = socket;  
     }  
   
@@ -407,7 +407,7 @@ import java.util.List;
             System.out.println("New client handler thread started for " + socket.getRemoteSocketAddress());  
   
             OutputStream outputStream = socket.getOutputStream();  
-            Utils.Protocol protocol=new Utils.Protocol(socket.getInputStream());  
+            Service.Protocol protocol=new Service.Protocol(socket.getInputStream());  
   
             while (!socket.isClosed()) {  
                 //1.使用解析器读取一个完整的命令  
@@ -458,20 +458,20 @@ import java.util.List;
 }
 ```
 
-# Implement the SET & GET commands
+# Implement the SET & GET Commands
 上一阶段完成了ECHO命令，现在到了GET和SET命令了。
 ## Tests
 - 数据和逻辑需要分离，因此Protocol只管解析，再设计一个类DataStore来进行存取，而ClientHandler只管协调。
 - 使用HashMap完成GET和SET。
 - code：
-- DAO.DataStore.java
+- Storage.DataStore.java
 ``` java
 import java.util.concurrent.ConcurrentHashMap;  
 import java.util.Map;  
   
 /**  
  * @author Achilles  
- */public class DAO.DataStore {  
+ */public class Storage.DataStore {  
     private static final Map<String, byte[]> map = new ConcurrentHashMap<>();  
   
     public static void set(String key, byte[] value) {  
@@ -483,7 +483,7 @@ import java.util.Map;
     }  
 }
 ```
-- Controller.ClientHandler.java
+- Service.ClientHandler.java
 ``` java
 import javax.swing.text.html.parser.Parser;  
 import java.io.IOException;  
@@ -496,11 +496,11 @@ import java.util.List;
   
 /**  
  * @author Achilles  
- */public class Controller.ClientHandler implements Runnable{  
+ */public class Service.ClientHandler implements Runnable{  
   
     private final Socket clientSocket;  
   
-    public Controller.ClientHandler(Socket socket) {  
+    public Service.ClientHandler(Socket socket) {  
         this.clientSocket = socket;  
     }  
   
@@ -515,7 +515,7 @@ import java.util.List;
             System.out.println("New client handler thread started for " + socket.getRemoteSocketAddress());  
   
             OutputStream outputStream = socket.getOutputStream();  
-            Utils.Protocol protocol=new Utils.Protocol(socket.getInputStream());  
+            Service.Protocol protocol=new Service.Protocol(socket.getInputStream());  
   
             while (!socket.isClosed()) {  
                 //1.使用解析器读取一个完整的命令  
@@ -549,7 +549,7 @@ import java.util.List;
                         if (commandParts.size() > 2) {  
                             String key = new String(commandParts.get(1), StandardCharsets.UTF_8);  
                             byte[] value = commandParts.get(2);  
-                            DAO.DataStore.set(key, value);  
+                            Storage.DataStore.set(key, value);  
                             outputStream.write("+OK\r\n".getBytes());  
                         } else {  
                             outputStream.write("-ERR wrong number of arguments for 'set' command\r\n".getBytes());  
@@ -558,7 +558,7 @@ import java.util.List;
                     case "GET":  
                         if (commandParts.size() > 1) {  
                             String key = new String(commandParts.get(1), StandardCharsets.UTF_8);  
-                            byte[] value = DAO.DataStore.get(key);  
+                            byte[] value = Storage.DataStore.get(key);  
                             if (value != null) {  
                                 // 找到了值，以 Bulk String 格式返回  
                                 outputStream.write(('$' + String.valueOf(value.length) + "\r\n").getBytes());  
@@ -600,16 +600,16 @@ import java.util.List;
 ## Tests
 1. 创建一个新的数据结构来包装值，能同时包含值和过期时间。可以使用内部类或者Java Record来做这件事。
 ``` java
-//DAO.ValueEntry.java
+//Storage.ValueEntry.java
 /**
- * 用于封装存储在 DAO.DataStore 中的值及其元数据。
+ * 用于封装存储在 Storage.DataStore 中的值及其元数据。
  */
-class DAO.ValueEntry {
+class Storage.ValueEntry {
     final byte[] value;
     final long expiryTimestamp; // 过期的绝对时间点 (毫秒)
 
     // expiryTimestamp = -1 表示永不过期
-    public DAO.ValueEntry(byte[] value, long expiryTimestamp) {
+    public Storage.ValueEntry(byte[] value, long expiryTimestamp) {
         this.value = value;
         this.expiryTimestamp = expiryTimestamp;
     }
@@ -631,9 +631,9 @@ class DAO.ValueEntry {
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
-class DAO.DataStore {
-    // 将 Map 的值类型从 byte[] 改为 DAO.ValueEntry
-    private static final Map<String, DAO.ValueEntry> map = new ConcurrentHashMap<>();
+class Storage.DataStore {
+    // 将 Map 的值类型从 byte[] 改为 Storage.ValueEntry
+    private static final Map<String, Storage.ValueEntry> map = new ConcurrentHashMap<>();
 
     // SET 方法需要能接收一个可选的过期时间
     public static void set(String key, byte[] value, long ttlMillis) {
@@ -645,12 +645,12 @@ class DAO.DataStore {
             // -1 或 0 表示永不过期
             expiryTimestamp = -1;
         }
-        map.put(key, new DAO.ValueEntry(value, expiryTimestamp));
+        map.put(key, new Storage.ValueEntry(value, expiryTimestamp));
     }
 
     // GET 方法中实现“被动删除”的核心逻辑
     public static byte[] get(String key) {
-        DAO.ValueEntry entry = map.get(key);
+        Storage.ValueEntry entry = map.get(key);
 
         if (entry == null) {
             return null; // Key 不存在
@@ -701,13 +701,13 @@ case "SET":
         }  
     }  
   
-    DAO.DataStore.set(key, value, ttl);  
+    Storage.DataStore.set(key, value, ttl);  
     outputStream.write("+OK\r\n".getBytes());  
     break;  
 case "GET":  
     if (commandParts.size() > 1) {  
         String getKey = new String(commandParts.get(1), StandardCharsets.UTF_8);  
-        byte[] getValue = DAO.DataStore.get(getKey);  
+        byte[] getValue = Storage.DataStore.get(getKey);  
         if (getValue != null) {  
             // 找到了值，以 Bulk String 格式返回  
             outputStream.write(('$' + String.valueOf(getValue.length) + "\r\n").getBytes());  

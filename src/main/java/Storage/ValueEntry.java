@@ -1,8 +1,8 @@
-package DAO;
+package Storage;
 
 /**
  * @author Achilles
- * 用于封装存储在DataStore中的值及其元数据
+ * 数据模型：字符串
  */
 public class ValueEntry {
     public final byte[] value;
