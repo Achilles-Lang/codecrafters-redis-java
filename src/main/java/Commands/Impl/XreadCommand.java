@@ -7,10 +7,7 @@ import Storage.StreamEntry;
 import Storage.StreamEntryID;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author Achilles
@@ -41,7 +38,7 @@ public class XreadCommand implements Command {
             List<byte[]> keys = args.subList(streamsIndex + 1, streamsIndex + 1 + numKeys);
             List<byte[]> ids = args.subList(streamsIndex + 1 + numKeys, args.size());
 
-            Map<String, StreamEntryID> streamsToRead = new HashMap<>();
+            Map<String, StreamEntryID> streamsToRead = new LinkedHashMap<>();
             for (int i = 0; i < numKeys; i++) {
                 String key = new String(keys.get(i), StandardCharsets.UTF_8);
                 String idStr = new String(ids.get(i), StandardCharsets.UTF_8);
