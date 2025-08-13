@@ -34,19 +34,22 @@ public class XreadCommand implements Command {
             if(streamsIndex==-1){
                 return new Exception("Syntax error in XREAD command. Missing STREAMS keyword.");
             }
-            int numKeys=streamsIndex;
-            if((args.size()-1-streamsIndex)!=numKeys){
-                return new Exception("Unbalanced XREAD list of streams: keys and IDs must match.");
-            }
-            if(numKeys==0){
+
+            int totalKeysAndIds = args.size() - (streamsIndex + 1);
+            if (totalKeysAndIds % 2 != 0 || totalKeysAndIds == 0) {
                 return new Exception("wrong number of arguments for 'xread' command");
             }
 
-            Map<String,StreamEntryID> streamsToRead=new HashMap<>();
-            for(int i=0;i<numKeys;i++){
-                String streamKey = new String(args.get(i + 1+streamsIndex), StandardCharsets.UTF_8);
-                String idStr=new String(args.get(i + 1+streamsIndex+numKeys), StandardCharsets.UTF_8);
-                streamsToRead.put(streamKey,XrangeCommand.parseId(idStr,true));
+            int numKeys = totalKeysAndIds / 2;
+            List<byte[]> keys = args.subList(streamsIndex + 1, streamsIndex + 1 + numKeys);
+            List<byte[]> ids = args.subList(streamsIndex + 1 + numKeys, args.size());
+
+            Map<String, StreamEntryID> streamsToRead = new HashMap<>();
+            for (int i = 0; i < numKeys; i++) {
+                String key = new String(keys.get(i), StandardCharsets.UTF_8);
+                String idStr = new String(ids.get(i), StandardCharsets.UTF_8);
+                // 复用我们之前为 XRANGE 编写的 ID 解析器
+                streamsToRead.put(key, XrangeCommand.parseId(idStr, true));
             }
 
             Map<String,List<StreamEntry>> resultData=DataStore.getInstance().xread(streamsToRead);
