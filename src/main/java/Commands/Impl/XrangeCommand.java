@@ -57,7 +57,7 @@ public class XrangeCommand implements Command {
     /**
      * 辅助方法，用于解析可能不完整的 Stream ID。
      */
-    private StreamEntryID parseId(String idStr, boolean isStart) {
+    public static StreamEntryID parseId(String idStr, boolean isStart) {
         if ("-".equals(idStr)) {
             return new StreamEntryID(0, 0); // 简化处理，代表最小
         }

@@ -18,32 +18,42 @@ import java.util.Map;
 public class XreadCommand implements Command {
     @Override
     public Object execute(List<byte[]> args) {
-// XREAD streams <key> <id>
+        // XREAD streams <key> <id>
         if (args.size() != 3) {
             return new Exception("wrong number of arguments for 'xread' command");
         }
         try {
-            String streamsKeyword = new String(args.get(0), StandardCharsets.UTF_8);
-            if (!"streams".equalsIgnoreCase(streamsKeyword)) {
-                return new Exception("syntax error");
+            int streamsIndex=-1;
+            for(int i=0;i<args.size();i++){
+                if("streams".equalsIgnoreCase(new String(args.get(i),StandardCharsets.UTF_8))){
+                    streamsIndex=i;
+                    break;
+                }
             }
 
-            String key = new String(args.get(1), StandardCharsets.UTF_8);
-            String idStr = new String(args.get(2), StandardCharsets.UTF_8);
-            StreamEntryID startId = parseId(idStr);
-
-            // 1. 准备给 DataStore 的参数
-            Map<String, StreamEntryID> streamsToRead = new HashMap<>();
-            streamsToRead.put(key, startId);
-
-            // 2. 调用 DataStore 获取原始数据
-            Map<String, List<StreamEntry>> resultData = DataStore.getInstance().xread(streamsToRead);
-
-            // 3. 将 DataStore 返回的结果转换为 RESP 嵌套数组格式
-            if (resultData.isEmpty()) {
-                return null; // 如果没有新条目，返回 NIL
+            if(streamsIndex==-1){
+                return new Exception("Syntax error in XREAD command. Missing STREAMS keyword.");
+            }
+            int numKeys=streamsIndex;
+            if((args.size()-1-streamsIndex)!=numKeys){
+                return new Exception("Unbalanced XREAD list of streams: keys and IDs must match.");
+            }
+            if(numKeys==0){
+                return new Exception("wrong number of arguments for 'xread' command");
             }
 
+            Map<String,StreamEntryID> streamsToRead=new HashMap<>();
+            for(int i=0;i<numKeys;i++){
+                String streamKey = new String(args.get(i + 1+streamsIndex), StandardCharsets.UTF_8);
+                String idStr=new String(args.get(i + 1+streamsIndex+numKeys), StandardCharsets.UTF_8);
+                streamsToRead.put(streamKey,XrangeCommand.parseId(idStr,true));
+            }
+
+            Map<String,List<StreamEntry>> resultData=DataStore.getInstance().xread(streamsToRead);
+
+            if(resultData.isEmpty()){
+                return null;
+            }
             List<Object> response = new ArrayList<>();
             for (Map.Entry<String, List<StreamEntry>> streamResult : resultData.entrySet()) {
                 // 外层数组 1: 代表一个 Stream 的结果 [key, [[id, [f,v,...]], ...]]
@@ -80,7 +90,7 @@ public class XreadCommand implements Command {
     /**
      * 辅助方法，用于解析Stream ID。
      */
-    private StreamEntryID parseId(String idStr){
+    private  StreamEntryID parseId(String idStr){
         String[] parts = idStr.split("-");
         long timestamp = Long.parseLong(parts[0]);
         int sequence = Integer.parseInt(parts[1]);
