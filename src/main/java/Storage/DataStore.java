@@ -284,9 +284,11 @@ public class DataStore {
             // --- 情况1：用户提供了完整的 ID ---
             finalId = new StreamEntryID(reqTimestamp, reqSequence);
         }
+        StreamEntryID newId=stream.add(finalId, fields);
+        this.notifyAll();
 
         // 调用 RedisStream.add 进行最终验证和添加
-        return stream.add(finalId, fields);
+        return newId;
     }
 
     /**
@@ -376,32 +378,55 @@ public class DataStore {
      * 从一个或多个 Stream 中读取ID大于指定ID的条目。
      * @param streamsToRead 一个 Map，key 是 Stream 的 key，value 是起始 ID (不包含)。
      * @return 一个 Map，key 是 Stream 的 key，value 是所有符合条件的条目列表。
+     * @param timeoutMillis 阻塞时长，单位毫秒。
      * @throws WrongTypeException 如果某个 key 对应的值不是 Stream。
      */
-    public synchronized Map<String, List<StreamEntry>> xread(Map<String, StreamEntryID> streamsToRead) throws WrongTypeException {
-        Map<String, List<StreamEntry>> result = new LinkedHashMap<>(); // 使用 LinkedHashMap 保持顺序
+    public synchronized Map<String, List<StreamEntry>> xread(Map<String, StreamEntryID> streamsToRead,long timeoutMillis) throws WrongTypeException, InterruptedException {
+        long deadline = (timeoutMillis > 0) ? (System.currentTimeMillis() + timeoutMillis) : 0;
 
+        while (true) {
+            // 1. 先执行一次非阻塞的查询
+            Map<String, List<StreamEntry>> result = queryStreams(streamsToRead);
+
+            // 2. 如果有结果，或者这是一个非阻塞调用，立即返回
+            if (!result.isEmpty() || timeoutMillis < 0) {
+                return result;
+            }
+
+            // 3. 如果没结果且需要阻塞，则计算剩余时间并等待
+            long remainingTime = 0;
+            if (timeoutMillis > 0) {
+                remainingTime = deadline - System.currentTimeMillis();
+                if (remainingTime <= 0) {
+                    return new LinkedHashMap<>(); // 超时，返回空结果
+                }
+            }
+
+            this.wait(remainingTime); // 0 表示无限等待
+        }
+    }
+    /**
+     * 辅助方法，执行一次实际的、非阻塞的流查询。
+     */
+    private Map<String, List<StreamEntry>> queryStreams(Map<String, StreamEntryID> streamsToRead) throws WrongTypeException {
+        Map<String, List<StreamEntry>> result = new LinkedHashMap<>();
         for (Map.Entry<String, StreamEntryID> query : streamsToRead.entrySet()) {
             String key = query.getKey();
             StreamEntryID startId = query.getValue();
-
             Object value = map.get(key);
             if (value == null) {
-                continue; // 如果 key 不存在，直接跳过
+                continue;
             }
             if (!(value instanceof RedisStream)) {
                 throw new WrongTypeException("Operation against a key holding the wrong kind of value");
             }
-
             RedisStream stream = (RedisStream) value;
             List<StreamEntry> newEntries = new ArrayList<>();
             for (StreamEntry entry : stream.getEntries()) {
-                // **核心逻辑**: 筛选出 ID 严格大于起始 ID 的条目
                 if (entry.id.compareTo(startId) > 0) {
                     newEntries.add(entry);
                 }
             }
-
             if (!newEntries.isEmpty()) {
                 result.put(key, newEntries);
             }
