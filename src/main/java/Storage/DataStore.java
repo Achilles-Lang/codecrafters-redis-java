@@ -144,13 +144,13 @@ public class DataStore {
     /**
      * 阻塞式地从列表左侧弹出一个元素，支持超时。
      *
-     * @param key            列表的 key
+     * @param keys            列表的 key
      * @param timeoutSeconds 超时时间（秒）。0 表示无限等待。
      * @return 弹出的元素。如果超时，返回 null。
      * @throws WrongTypeException   如果 key 存在但不是列表。
      * @throws InterruptedException 如果线程在等待时被中断。
      */
-    public synchronized Object[] blpop(List<byte[]> keys, String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
+    public synchronized Object[] blpop(List<byte[]> keys, double timeoutSeconds) throws WrongTypeException, InterruptedException {
         long deadLine = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long) (timeoutSeconds * 1000)) : 0;
         while (true) {
             for (byte[] keyBytes : keys) {
