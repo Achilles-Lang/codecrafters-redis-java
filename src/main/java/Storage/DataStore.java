@@ -382,34 +382,28 @@ public class DataStore {
      * @throws WrongTypeException 如果某个 key 对应的值不是 Stream。
      */
     public synchronized Map<String, List<StreamEntry>> xread(Map<String, StreamEntryID> streamsToRead,long timeoutMillis) throws WrongTypeException, InterruptedException {
+        long deadline = (timeoutMillis > 0) ? (System.currentTimeMillis() + timeoutMillis) : 0;
+
         // 创建一个新的 Map 来存放解析后的、具体的起始 ID
         Map<String, StreamEntryID> resolvedStreamsToRead = new LinkedHashMap<>();
         for (Map.Entry<String, StreamEntryID> query : streamsToRead.entrySet()) {
             String key = query.getKey();
             StreamEntryID startId = query.getValue();
 
-            if (startId.timestamp == -1 && startId.sequence == -1) { // 检查是否是我们的 "$" 占位符
+            // 检查是否是我们为 "$" 设置的占位符 (例如 new StreamEntryID(-1, -1))
+            if (startId.timestamp == -1 && startId.sequence == -1) {
                 Object value = map.get(key);
+                StreamEntryID lastId = null;
                 if (value instanceof RedisStream) {
-                    RedisStream stream = (RedisStream) value;
-                    StreamEntryID lastId = stream.getLastId();
-                    if (lastId != null) {
-                        resolvedStreamsToRead.put(key, lastId); // 用流的最后一个ID替换
-                    } else {
-                        // 如果流为空，从 0-0 开始查
-                        resolvedStreamsToRead.put(key, new StreamEntryID(0, 0));
-                    }
-                } else {
-                    // 如果流不存在，也从 0-0 开始查
-                    resolvedStreamsToRead.put(key, new StreamEntryID(0, 0));
+                    lastId = ((RedisStream) value).getLastId();
                 }
+                // 如果流为空或不存在，则从 0-0 开始查；否则从最后一个ID开始查
+                resolvedStreamsToRead.put(key, (lastId != null) ? lastId : new StreamEntryID(0, 0));
             } else {
-                // 如果不是占位符，直接使用提供的ID
                 resolvedStreamsToRead.put(key, startId);
             }
         }
 
-        long deadline = (timeoutMillis > 0) ? (System.currentTimeMillis() + timeoutMillis) : 0;
 
         while (true) {
             // 1. 先执行一次非阻塞的查询
@@ -421,15 +415,15 @@ public class DataStore {
             }
 
             // 3. 如果没结果且需要阻塞，则计算剩余时间并等待
-            long remainingTime = 0;
-            if (timeoutMillis > 0) {
-                remainingTime = deadline - System.currentTimeMillis();
-                if (remainingTime <= 0) {
-                    return new LinkedHashMap<>(); // 超时，返回空结果
+            if (timeoutMillis == 0) {
+                this.wait();
+            }else {
+                long remainingTime = deadline - System.currentTimeMillis();
+                if(remainingTime <= 0){
+                    return new LinkedHashMap<>();
                 }
+                this.wait(remainingTime);
             }
-            // 0 表示无限等待
-            this.wait(remainingTime);
         }
     }
     /**
