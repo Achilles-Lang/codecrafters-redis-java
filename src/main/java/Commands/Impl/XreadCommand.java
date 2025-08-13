@@ -19,9 +19,6 @@ public class XreadCommand implements Command {
     @Override
     public Object execute(List<byte[]> args) {
         // XREAD streams <key> <id>
-        if (args.size() != 3) {
-            return new Exception("wrong number of arguments for 'xread' command");
-        }
         try {
             int streamsIndex=-1;
             for(int i=0;i<args.size();i++){
