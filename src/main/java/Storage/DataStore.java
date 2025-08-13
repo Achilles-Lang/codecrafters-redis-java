@@ -363,4 +363,40 @@ public class DataStore {
             }
             return results;
     }
+    /**
+     * 从一个或多个 Stream 中读取ID大于指定ID的条目。
+     * @param streamsToRead 一个 Map，key 是 Stream 的 key，value 是起始 ID (不包含)。
+     * @return 一个 Map，key 是 Stream 的 key，value 是所有符合条件的条目列表。
+     * @throws WrongTypeException 如果某个 key 对应的值不是 Stream。
+     */
+    public synchronized Map<String, List<StreamEntry>> xread(Map<String, StreamEntryID> streamsToRead) throws WrongTypeException {
+        Map<String, List<StreamEntry>> result = new LinkedHashMap<>(); // 使用 LinkedHashMap 保持顺序
+
+        for (Map.Entry<String, StreamEntryID> query : streamsToRead.entrySet()) {
+            String key = query.getKey();
+            StreamEntryID startId = query.getValue();
+
+            Object value = map.get(key);
+            if (value == null) {
+                continue; // 如果 key 不存在，直接跳过
+            }
+            if (!(value instanceof RedisStream)) {
+                throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+            }
+
+            RedisStream stream = (RedisStream) value;
+            List<StreamEntry> newEntries = new ArrayList<>();
+            for (StreamEntry entry : stream.getEntries()) {
+                // **核心逻辑**: 筛选出 ID 严格大于起始 ID 的条目
+                if (entry.id.compareTo(startId) > 0) {
+                    newEntries.add(entry);
+                }
+            }
+
+            if (!newEntries.isEmpty()) {
+                result.put(key, newEntries);
+            }
+        }
+        return result;
+    }
 }
