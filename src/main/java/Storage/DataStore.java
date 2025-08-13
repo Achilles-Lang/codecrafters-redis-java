@@ -401,8 +401,8 @@ public class DataStore {
                     return new LinkedHashMap<>(); // 超时，返回空结果
                 }
             }
-
-            this.wait(remainingTime); // 0 表示无限等待
+            // 0 表示无限等待
+            this.wait(remainingTime);
         }
     }
     /**
