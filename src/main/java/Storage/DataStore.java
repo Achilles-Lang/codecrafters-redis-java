@@ -407,7 +407,7 @@ public class DataStore {
 
         while (true) {
             // 1. 先执行一次非阻塞的查询
-            Map<String, List<StreamEntry>> result = queryStreams(streamsToRead);
+            Map<String, List<StreamEntry>> result = queryStreams(resolvedStreamsToRead);
 
             // 2. 如果有结果，或者这是一个非阻塞调用，立即返回
             if (!result.isEmpty() || timeoutMillis < 0) {
