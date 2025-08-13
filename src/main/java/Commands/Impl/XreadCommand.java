@@ -13,6 +13,9 @@ import java.util.*;
  * @author Achilles
  */
 public class XreadCommand implements Command {
+
+    private static final StreamEntryID LATEST_ID_PLACEHOLDER = new StreamEntryID(-1, -1);
+
     @Override
     public Object execute(List<byte[]> args) {
         // XREAD streams <key> <id>
@@ -56,8 +59,15 @@ public class XreadCommand implements Command {
             for (int i = 0; i < numKeys; i++) {
                 String key = new String(args.get(streamsIndex + 1 + i));
                 String idStr = new String(args.get(streamsIndex + 1 + numKeys + i));
-                streamsToRead.put(key, XrangeCommand.parseId(idStr, true));
+
+                if("$".equals(idStr)){
+                    streamsToRead.put(key, LATEST_ID_PLACEHOLDER);
+                }else{
+                    streamsToRead.put(key, XrangeCommand.parseId(idStr,true));
+                }
             }
+
+
 
             //调用Datastore方法
             Map<String, List<StreamEntry>> resultData = DataStore.getInstance().xread(streamsToRead,timeoutMillis);
