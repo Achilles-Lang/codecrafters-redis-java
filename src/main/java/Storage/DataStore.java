@@ -2,6 +2,7 @@ package Storage;
 
 import Config.WrongTypeException;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -14,15 +15,17 @@ public class DataStore {
 
     private final Map<String, Object> map = new ConcurrentHashMap<>();
 
-    private  DataStore(){}
+    private DataStore() {
+    }
 
-    public static DataStore getInstance(){
+    public static DataStore getInstance() {
         return instance;
     }
+
     // --- 字符串操作 ---
     public synchronized void setString(String key, ValueEntry value) {
-            map.put(key, value);
-            this.notifyAll();
+        map.put(key, value);
+        this.notifyAll();
     }
 
     public synchronized ValueEntry getString(String key) {
@@ -42,127 +45,133 @@ public class DataStore {
     }
 
     // --- 列表操作 ---
+
     /**
      * 将一个或多个值推入列表末尾。
      * 如果 key 不存在，则创建新列表。
+     *
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1 (错误码)。
      */
-    public synchronized int rpush(String key, List<byte[]> valuesToPush) throws  WrongTypeException{
-            Object value = map.get(key);
-            List<byte[]> list;
-            if (value == null) {
-                // 如果 key 不存在，创建新列表
-                list = new LinkedList<>();
-                map.put(key, list);
-            } else if (value instanceof List) {
-                // 如果是列表，直接使用
-                list = (List<byte[]>) value;
-            } else {
-                // 如果 key 存在但不是列表，返回错误码
-                throw new WrongTypeException("Operation against a key holding the wrong kind of value");
-            }
+    public synchronized int rpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
+        Object value = map.get(key);
+        List<byte[]> list;
+        if (value == null) {
+            // 如果 key 不存在，创建新列表
+            list = new LinkedList<>();
+            map.put(key, list);
+        } else if (value instanceof List) {
+            // 如果是列表，直接使用
+            list = (List<byte[]>) value;
+        } else {
+            // 如果 key 存在但不是列表，返回错误码
+            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+        }
 
-            list.addAll(valuesToPush);
-            this.notifyAll();
-            return list.size();
+        list.addAll(valuesToPush);
+        this.notifyAll();
+        return list.size();
     }
+
     /**
      * 将一个或多个值推入列表头部。
-     * @param key 列表的 key
+     *
+     * @param key          列表的 key
      * @param valuesToPush 要添加的元素
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1。
      */
     public synchronized int lpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
-            Object value = map.get(key);
+        Object value = map.get(key);
 
-            LinkedList<byte[]> list;
+        LinkedList<byte[]> list;
 
-            if (value == null) {
-                // 如果 key 不存在，创建新 LinkedList
-                list = new LinkedList<>();
-                map.put(key, list);
-            } else if (value instanceof List) {
-                // 如果已存在的是 ArrayList，为了效率创建一个新的 LinkedList
-                list= (LinkedList<byte[]>) value;
-            } else {
-                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
-            }
-            // 遍历要插入的元素，逐个添加到列表头部
-            // LPUSH a b c -> 列表最终是 [c, b, a, ...]
-            // 所以我们按 a, b, c 的顺序，依次在索引 0 处插入
-            for (byte[] v : valuesToPush) {
-                // LinkedList.addFirst() 是 O(1) 操作，效率很高
-                list.addFirst(v);
-            }
-            this.notifyAll();
-            return list.size();
+        if (value == null) {
+            // 如果 key 不存在，创建新 LinkedList
+            list = new LinkedList<>();
+            map.put(key, list);
+        } else if (value instanceof List) {
+            // 如果已存在的是 ArrayList，为了效率创建一个新的 LinkedList
+            list = (LinkedList<byte[]>) value;
+        } else {
+            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+        }
+        // 遍历要插入的元素，逐个添加到列表头部
+        // LPUSH a b c -> 列表最终是 [c, b, a, ...]
+        // 所以我们按 a, b, c 的顺序，依次在索引 0 处插入
+        for (byte[] v : valuesToPush) {
+            // LinkedList.addFirst() 是 O(1) 操作，效率很高
+            list.addFirst(v);
+        }
+        this.notifyAll();
+        return list.size();
     }
+
     /**
      * 从列表左侧（头部）移除并返回指定数量的元素
-     * @param key 列表的 key
+     *
+     * @param key   列表的 key
      * @param count 要移除的元素数量
      * @return 被移除的元素列表。如果 key 不存在，返回 null。如果 key 存在但列表为空，返回空列表。
      * @throws WrongTypeException 如果 key 存在但不是列表类型。
      */
-    public synchronized List<byte[]> lpop(String key,int count) throws WrongTypeException {
-            Object value = map.get(key);
+    public synchronized List<byte[]> lpop(String key, int count) throws WrongTypeException {
+        Object value = map.get(key);
 
-            // 情况 2: key 不存在，返回 null (代表 NIL)
-            if (value == null) {
-                return null;
-            }
+        // 情况 2: key 不存在，返回 null (代表 NIL)
+        if (value == null) {
+            return null;
+        }
 
-            // 情况 3: key 存在但不是列表，抛出异常
-            if (!(value instanceof List)) {
-                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
-            }
+        // 情况 3: key 存在但不是列表，抛出异常
+        if (!(value instanceof List)) {
+            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+        }
 
-            @SuppressWarnings("unchecked")
-            LinkedList<byte[]> list = (LinkedList<byte[]>) value;
+        @SuppressWarnings("unchecked")
+        LinkedList<byte[]> list = (LinkedList<byte[]>) value;
 
-            int actualCount = Math.min(list.size(), count);
+        int actualCount = Math.min(list.size(), count);
 
-            List<byte[]> poppedElements = new ArrayList<>(actualCount);
-            for (int i = 0; i < actualCount; i++) {
-                poppedElements.add(list.removeFirst());
-            }
+        List<byte[]> poppedElements = new ArrayList<>(actualCount);
+        for (int i = 0; i < actualCount; i++) {
+            poppedElements.add(list.removeFirst());
+        }
 
-            // 情况 1: 列表不为空，移除并返回第一个元素
-            // LinkedList.removeFirst() 是 O(1) 操作，效率很高
-            return poppedElements;
+        // 情况 1: 列表不为空，移除并返回第一个元素
+        // LinkedList.removeFirst() 是 O(1) 操作，效率很高
+        return poppedElements;
     }
 
     /**
      * 阻塞式地从列表左侧弹出一个元素，支持超时。
-     * @param key 列表的 key
+     *
+     * @param key            列表的 key
      * @param timeoutSeconds 超时时间（秒）。0 表示无限等待。
      * @return 弹出的元素。如果超时，返回 null。
-     * @throws WrongTypeException 如果 key 存在但不是列表。
+     * @throws WrongTypeException   如果 key 存在但不是列表。
      * @throws InterruptedException 如果线程在等待时被中断。
      */
-    public synchronized byte[] blpop(String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
-        long deadLine=(timeoutSeconds>0)?(System.currentTimeMillis()+(long)(timeoutSeconds*1000)):0;
-        while(true){
-            Object value=map.get(key);
-            if(value!=null&&!(value instanceof List) ){
-                throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
-            }
-            LinkedList<byte[]> list=(LinkedList<byte[]>)value;
-
-            if(list!=null&&!list.isEmpty()){
-                return list.removeFirst();
-            }
-            if(timeoutSeconds>0){
-                long remainingTime=deadLine-System.currentTimeMillis();
-                if(remainingTime<=0){
-                    return null;
+    public synchronized Object[] blpop(List<byte[]> keys, String key, double timeoutSeconds) throws WrongTypeException, InterruptedException {
+        long deadLine = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long) (timeoutSeconds * 1000)) : 0;
+        while (true) {
+            for (byte[] keyBytes : keys) {
+                String blpopKey = new String(keyBytes, StandardCharsets.UTF_8);
+                Object value = map.get(blpopKey);
+                if (value != null) {
+                    if (!(value instanceof List)) {
+                        throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+                    }
+                    LinkedList<byte[]> list = (LinkedList<byte[]>) value;
+                    if (!list.isEmpty()) {
+                        return new Object[]{keyBytes, list.removeFirst()};
+                    }
                 }
-                this.wait(remainingTime);
-            }else {
-                this.wait();
             }
+            long remainingTime = (timeoutSeconds > 0) ? deadLine - System.currentTimeMillis() : 0;
+            if (timeoutSeconds > 0 && remainingTime <= 0) {
+                return null;
+            }
+            this.wait(timeoutSeconds == 0 ? 0 : remainingTime);
         }
-
     }
 
     /**
