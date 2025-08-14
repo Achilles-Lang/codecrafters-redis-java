@@ -48,13 +48,16 @@ public class ClientHandler implements Runnable{
 
                 if(inTransaction){
                     //如果在事务中
-                    if("exec".equals(commandName)||"discard".equals(commandName)){
+                    if("exec".equals(commandName)){
                         inTransaction=false;
+                        List<Object> results = new LinkedList<>();
+                        RespEncoder.encode(outputStream,results);
                         transactionQueue.clear();
-                        outputStream.write("+OK\r\n".getBytes());
+                    } else if ( "discard".equals(commandName)) {
+
                     } else if ("multi".equals(commandName)) {
                         outputStream.write("-ERR MULTI calls can not be nested\r\n".getBytes());
-                    }else {
+                    }else{
                         transactionQueue.add(commandParts);
                         outputStream.write("+QUEUED\r\n".getBytes());
                     }
@@ -63,7 +66,10 @@ public class ClientHandler implements Runnable{
                         inTransaction=true;
                         transactionQueue.clear();
                         outputStream.write("+OK\r\n".getBytes());
-                    }else {
+                    } else if ("exec".equals(commandName)) {
+                        RespEncoder.encode(outputStream, new Exception("EXEC without MULTI"));
+
+                    } else {
                         List<byte[]> args=commandParts.subList(1, commandParts.size());
 
                         Command command=commandHandler.getCommand(commandName);

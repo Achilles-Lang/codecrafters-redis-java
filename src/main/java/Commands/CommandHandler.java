@@ -29,6 +29,8 @@ public class CommandHandler {
         commandMap.put("blpop",new BlpopCommand());
         commandMap.put("xread",new XreadCommand());
         commandMap.put("incr",new IncrCommand());
+        commandMap.put("exec",new ExecCommand());
+        commandMap.put("multi",new MultiCommand());
     }
     public Command getCommand(String commandName)
     {
