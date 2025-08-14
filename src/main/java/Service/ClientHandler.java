@@ -105,6 +105,7 @@ public class ClientHandler implements Runnable{
         }
 
     }
+
     //已迁移到 RespEncoder
     private void sendResponse(OutputStream outputStream, Object result) throws IOException {
         if (result == null) {
