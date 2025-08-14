@@ -56,11 +56,11 @@ public class ClientHandler implements Runnable{
 
                             Command commandToExecute = commandHandler.getCommand(queuedCommandName);
 
-                            if(commandToExecute==null){
-                                results.add(new Exception("unknown command '" + queuedCommandName + "'"));
+                            if(commandToExecute!=null){
+                                results.add(commandToExecute.execute(queuedArgs));
 
                             }else{
-                                results.add(commandToExecute.execute(queuedArgs));
+                                results.add(new Exception("unknown command '" + queuedCommandName + "'"));
                             }
                         }
                         RespEncoder.encode(outputStream,results);
@@ -70,21 +70,20 @@ public class ClientHandler implements Runnable{
                     } else if ( "discard".equals(commandName)) {
                         transactionQueue.clear();
                         inTransaction=false;
-                        outputStream.write("+OK\r\n".getBytes());
-
+                        RespEncoder.encode(outputStream,"OK");
                     } else if ("multi".equals(commandName)) {
-                        outputStream.write("-ERR MULTI calls can not be nested\r\n".getBytes());
+                        RespEncoder.encode(outputStream, new Exception("MULTI calls can not be nested"));
                     }else{
                         transactionQueue.add(commandParts);
-                        outputStream.write("+QUEUED\r\n".getBytes());
+                        RespEncoder.encode(outputStream, "QUEUED");
                     }
                 }else {
                     if("multi".equals(commandName)){
                         inTransaction=true;
                         transactionQueue.clear();
-                        outputStream.write("+OK\r\n".getBytes());
-                    } else if ("exec".equals(commandName)) {
-                        RespEncoder.encode(outputStream, new Exception("EXEC without MULTI"));
+                        RespEncoder.encode(outputStream, "OK");
+                    } else if ("exec".equals(commandName)||"discard".equals(commandName)) {
+                        RespEncoder.encode(outputStream, new Exception(commandName.toUpperCase() + " without MULTI"));
 
                     } else {
                         List<byte[]> args=commandParts.subList(1, commandParts.size());
