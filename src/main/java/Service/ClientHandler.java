@@ -6,7 +6,10 @@ import Commands.CommandHandler;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 
 /**
  * @author Achilles
@@ -16,6 +19,8 @@ public class ClientHandler implements Runnable{
 
     private final Socket clientSocket;
     private final CommandHandler commandHandler;
+    private boolean inTransaction = false;
+    private final Queue<List<byte[]>> transactionQueue=new LinkedList<>();
 
     public ClientHandler(Socket socket, CommandHandler commandHandler) {
         this.clientSocket = socket;
@@ -34,25 +39,40 @@ public class ClientHandler implements Runnable{
             Protocol protocol=new Protocol(socket.getInputStream());
 
             while (!socket.isClosed()) {
-                //1.使用解析器读取一个完整的命令
                 List<byte[]> commandParts=protocol.readCommand();
                 if(commandParts == null){
-                    //客户端关闭了连接
                     break;
                 }
-                //2.解析命令名称
-                String commandName=new String(commandParts.get(0));
-                List<byte[]> args=commandParts.subList(1, commandParts.size());
 
-                Command command=commandHandler.getCommand(commandName);
-                Object result;
-                if(command==null) {
-                    result = new Exception("unknown command '" + commandName + "'");
-                }else{
-                    result = command.execute(args);
+                String commandName=new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
+                if(inTransaction){
+                    //如果在事务中
+                    if("exec".equals(commandName)||"discard".equals(commandName)){
+                        inTransaction=false;
+                        transactionQueue.clear();
+                        outputStream.write("+OK\r\n".getBytes());
+                    } else if ("multi".equals(commandName)) {
+                        outputStream.write("-ERR MULTI calls can not be nested\r\n".getBytes());
+                    }else {
+                        transactionQueue.add(commandParts);
+                        outputStream.write("+QUEUED\r\n".getBytes());
+                    }
+                }else {
+                    if("multi".equals(commandName)){
+                        inTransaction=true;
+                        transactionQueue.clear();
+                        outputStream.write("+OK\r\n".getBytes());
+                    }else {
+                        List<byte[]> args=commandParts.subList(1, commandParts.size());
+
+                        Command command=commandHandler.getCommand(commandName);
+                        Object result=(command==null)
+                                ? new Exception("unknown command '" + commandName + "'")
+                                :command.execute(args);
+                        RespEncoder.encode(outputStream, result);
+                    }
                 }
-                RespEncoder.encode(outputStream, result);
                 outputStream.flush();
             }
         } catch (IOException e) {
