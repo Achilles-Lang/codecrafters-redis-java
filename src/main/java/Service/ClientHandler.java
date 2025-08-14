@@ -49,11 +49,28 @@ public class ClientHandler implements Runnable{
                 if(inTransaction){
                     //如果在事务中
                     if("exec".equals(commandName)){
-                        inTransaction=false;
                         List<Object> results = new LinkedList<>();
+                        for (List<byte[]> queuedCommandParts : transactionQueue) {
+                            String queuedCommandName = new String(queuedCommandParts.get(0), StandardCharsets.UTF_8);
+                            List<byte[]> queuedArgs = queuedCommandParts.subList(1, queuedCommandParts.size());
+
+                            Command commandToExecute = commandHandler.getCommand(queuedCommandName);
+
+                            if(commandToExecute==null){
+                                results.add(new Exception("unknown command '" + queuedCommandName + "'"));
+
+                            }else{
+                                results.add(commandToExecute.execute(queuedArgs));
+                            }
+                        }
                         RespEncoder.encode(outputStream,results);
                         transactionQueue.clear();
+                        inTransaction=false;
+
                     } else if ( "discard".equals(commandName)) {
+                        transactionQueue.clear();
+                        inTransaction=false;
+                        outputStream.write("+OK\r\n".getBytes());
 
                     } else if ("multi".equals(commandName)) {
                         outputStream.write("-ERR MULTI calls can not be nested\r\n".getBytes());
