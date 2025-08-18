@@ -33,6 +33,7 @@ public class CommandHandler {
         commandMap.put("multi",new MultiCommand());
         commandMap.put("info",new InfoCommand());
         commandMap.put("replconf",new ReplconfCommand());
+        commandMap.put("psync",new PsyncCommand());
     }
     public Command getCommand(String commandName)
     {
