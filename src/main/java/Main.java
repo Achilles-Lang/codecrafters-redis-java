@@ -1,5 +1,6 @@
 import Commands.CommandHandler;
 import Service.ClientHandler;
+import Service.MasterConnectionHandler;
 import Storage.DataStore;
 
 import java.io.IOException;
@@ -35,9 +36,13 @@ public class Main {
               }
           }
       }
+
       if (masterHost!=null&&masterPort!=-1){
           DataStore.getInstance().setAsReplica(masterHost, masterPort);
+          MasterConnectionHandler masterConnectionHandler=new MasterConnectionHandler(masterHost, masterPort);
+          new Thread(masterConnectionHandler).start();
       }
+
       try (ServerSocket serverSocket = new ServerSocket(port)) {
           serverSocket.setReuseAddress(true);
           CommandHandler commandHandler = new CommandHandler();
