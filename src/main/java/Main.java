@@ -9,6 +9,27 @@ public class Main {
   public static void main(String[] args){
       System.out.println("Logs from your program will appear here!");
 
+      //1.设置默认端口号
+      int port = 6379;
+
+      //2.检查命令行参数，查找“--port”
+      if (args.length>1){
+          for (int i = 0; i < args.length; i++) {
+              if ("--port".equalsIgnoreCase(args[i])) {
+                  if(i+1<args.length){
+                      try {
+                          port = Integer.parseInt(args[i+1]);
+                          break;
+                      } catch (NumberFormatException e){
+                          System.out.println("Invalid port number: " + args[i + 1]);
+                          return;
+                      }
+                  }
+              }
+          }
+      }
+      System.out.println("Server is configured to listen on port: " + port);
+
       try (ServerSocket serverSocket = new ServerSocket(6379)) {
           serverSocket.setReuseAddress(true);
           CommandHandler commandHandler = new CommandHandler(); // 创建一个命令处理器
