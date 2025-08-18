@@ -15,11 +15,17 @@ public class DataStore {
 
     private final Map<String, Object> map = new ConcurrentHashMap<>();
 
+    private String role = "master";
+
     private DataStore() {
     }
 
     public static DataStore getInstance() {
         return instance;
+    }
+
+    public String getRole() {
+        return this.role;
     }
 
     // --- 字符串操作 ---

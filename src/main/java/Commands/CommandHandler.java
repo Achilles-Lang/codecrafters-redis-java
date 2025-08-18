@@ -31,6 +31,7 @@ public class CommandHandler {
         commandMap.put("incr",new IncrCommand());
         commandMap.put("exec",new ExecCommand());
         commandMap.put("multi",new MultiCommand());
+        commandMap.put("info",new InfoCommand());
     }
     public Command getCommand(String commandName)
     {
