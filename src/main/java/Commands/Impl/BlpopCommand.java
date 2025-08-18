@@ -9,6 +9,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * @author Achilles
+ */
 public class BlpopCommand implements Command {
     @Override
     public Object execute(List<byte[]> args) {
