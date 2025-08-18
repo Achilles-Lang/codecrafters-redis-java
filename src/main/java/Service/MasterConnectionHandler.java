@@ -77,7 +77,7 @@ public class MasterConnectionHandler implements Runnable{
         os.write(commandBuilder.toString().getBytes(StandardCharsets.UTF_8));
         os.flush();
     }
-
+    //辅助方法，用于读取响应
     private  String readResponse(InputStream is) throws IOException {
         byte[] buffer = new byte[1024];
         int bytesRead = is.read(buffer);
