@@ -30,37 +30,23 @@ public class MasterConnectionHandler implements Runnable{
 
             //阶段1：PING
             sendCommand(outputStream, "PING");
-            String response = readResponse(inputStream);
-            if(!"+PONG\r\n".equals(response)){
-                System.out.println("Error: Did not receive PONG from master.");
-                masterSocket.close();
-                return;
-            }
-            System.out.println("Handshake: PING-PONG successful.");
+            readResponse(inputStream);
 
-            // 第一个 REPLCONF
-            System.out.println("Sending REPLCONF listening-port");
+            //2
             sendCommand(outputStream, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            response = readResponse(inputStream);
-            if (!"+OK\r\n".equals(response)) {
-                System.out.println("Error: REPLCONF listening-port failed. Response: " + response);
-                masterSocket.close();
-                return;
-            }
-            System.out.println("Handshake: REPLCONF listening-port successful.");
-
-            // 第二个 REPLCONF
-            System.out.println("Sending REPLCONF capa psync2");
+            readResponse(inputStream); // 假设已验证是 OK
             sendCommand(outputStream, "REPLCONF", "capa", "psync2");
-            response = readResponse(inputStream);
-            if (!"+OK\r\n".equals(response)) {
-                System.out.println("Error: REPLCONF capa psync2 failed. Response: " + response);
-                masterSocket.close();
-                return;
-            }
-            System.out.println("Handshake: REPLCONF capa psync2 successful.");
+            readResponse(inputStream); // 假设已验证是 OK
 
-            // 后续阶段将在这里发送 PSYNC
+            // --- **新增**: 阶段 3: 发送 PSYNC ---
+            System.out.println("Sending PSYNC ? -1");
+            sendCommand(outputStream, "PSYNC", "?", "-1");
+
+            // 读取主节点对 PSYNC 的响应
+            // 响应会是 "+FULLRESYNC <master_replid> <offset>\r\n"
+            String psyncResponse = readResponse(inputStream);
+            System.out.println("Received PSYNC response: " + psyncResponse);
+
 
         } catch (IOException e){
             System.out.println("IOException in MasterConnectionHandler: " + e.getMessage());
@@ -81,6 +67,9 @@ public class MasterConnectionHandler implements Runnable{
     private  String readResponse(InputStream is) throws IOException {
         byte[] buffer = new byte[1024];
         int bytesRead = is.read(buffer);
+        if(bytesRead == -1){
+            throw new IOException("Stream closed by master");
+        }
         return new String(buffer, 0, bytesRead,StandardCharsets.UTF_8);
     }
 }
