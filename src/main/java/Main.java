@@ -39,8 +39,9 @@ public class Main {
 
       if (masterHost!=null&&masterPort!=-1){
           DataStore.getInstance().setAsReplica(masterHost, masterPort);
-          MasterConnectionHandler masterConnectionHandler=new MasterConnectionHandler(masterHost, masterPort);
+          MasterConnectionHandler masterConnectionHandler=new MasterConnectionHandler(masterHost, masterPort,port);
           new Thread(masterConnectionHandler).start();
+
       }
 
       try (ServerSocket serverSocket = new ServerSocket(port)) {

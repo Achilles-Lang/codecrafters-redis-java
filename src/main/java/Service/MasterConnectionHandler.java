@@ -13,46 +13,74 @@ import java.nio.charset.StandardCharsets;
 public class MasterConnectionHandler implements Runnable{
     private final String masterHost;
     private final int masterPort;
+    private final int listeningPort;
 
-    public MasterConnectionHandler(String masterHost, int masterPort) {
+    public MasterConnectionHandler(String masterHost, int masterPort,int listeningPort) {
         this.masterHost = masterHost;
         this.masterPort = masterPort;
+        this.listeningPort=listeningPort;
     }
 
     @Override
     public void run() {
         try {
-            System.out.println("Connecting to master at " + masterHost + ":" + masterPort);
-            // 1. 创建一个客户端 Socket 连接到主节点
             Socket masterSocket = new Socket(masterHost, masterPort);
-            System.out.println("Connected to master. Starting handshake.");
-
             OutputStream outputStream = masterSocket.getOutputStream();
             InputStream inputStream = masterSocket.getInputStream();
 
-            // 2. 发送 PING 命令
-            // RESP 格式: *1\r\n$4\r\nPING\r\n
-            String pingCommand = "*1\r\n$4\r\nPING\r\n";
-            outputStream.write(pingCommand.getBytes(StandardCharsets.UTF_8));
-            outputStream.flush();
-            System.out.println("Sent PING to master.");
-
-            // 3. 读取并验证 PONG 回复
-            // 简单的实现：假设缓冲区足够大，一次读完
-            byte[] buffer = new byte[1024];
-            int bytesRead = inputStream.read(buffer);
-            String response = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
-
-            if ("+PONG\r\n".equals(response)) {
-                System.out.println("Received PONG from master. Handshake part 1 successful.");
-            } else {
-                System.out.println("Error: Did not receive PONG from master. Received: " + response);
+            //阶段1：PING
+            sendCommand(outputStream, "PING");
+            String response = readResponse(inputStream);
+            if(!"+PONG\r\n".equals(response)){
+                System.out.println("Error: Did not receive PONG from master.");
+                masterSocket.close();
+                return;
             }
+            System.out.println("Handshake: PING-PONG successful.");
 
-            // 在后续阶段，这个线程会继续留在这里，监听主节点发来的数据
-            // masterSocket.close(); // 暂时我们先不关闭连接
+            // 第一个 REPLCONF
+            System.out.println("Sending REPLCONF listening-port");
+            sendCommand(outputStream, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
+            response = readResponse(inputStream);
+            if (!"+OK\r\n".equals(response)) {
+                System.out.println("Error: REPLCONF listening-port failed. Response: " + response);
+                masterSocket.close();
+                return;
+            }
+            System.out.println("Handshake: REPLCONF listening-port successful.");
+
+            // 第二个 REPLCONF
+            System.out.println("Sending REPLCONF capa psync2");
+            sendCommand(outputStream, "REPLCONF", "capa", "psync2");
+            response = readResponse(inputStream);
+            if (!"+OK\r\n".equals(response)) {
+                System.out.println("Error: REPLCONF capa psync2 failed. Response: " + response);
+                masterSocket.close();
+                return;
+            }
+            System.out.println("Handshake: REPLCONF capa psync2 successful.");
+
+            // 后续阶段将在这里发送 PSYNC
+
         } catch (IOException e){
             System.out.println("IOException in MasterConnectionHandler: " + e.getMessage());
         }
+    }
+    //辅助方法，用于将命令编码为RESP Array 格式并发送
+    private void sendCommand(OutputStream os, String... args) throws IOException {
+        StringBuilder commandBuilder = new StringBuilder();
+        commandBuilder.append("*").append(args.length).append("\r\n");
+        for (String arg : args) {
+            commandBuilder.append("$").append(arg.length()).append("\r\n");
+            commandBuilder.append(arg).append("\r\n");
+        }
+        os.write(commandBuilder.toString().getBytes(StandardCharsets.UTF_8));
+        os.flush();
+    }
+
+    private  String readResponse(InputStream is) throws IOException {
+        byte[] buffer = new byte[1024];
+        int bytesRead = is.read(buffer);
+        return new String(buffer, 0, bytesRead,StandardCharsets.UTF_8);
     }
 }
