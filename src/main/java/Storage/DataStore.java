@@ -15,7 +15,7 @@ public class DataStore {
 
     private final Map<String, Object> map = new ConcurrentHashMap<>();
 
-    private String role = "master";
+    private final ReplicationInfo replicationInfo =new ReplicationInfo();
 
     private DataStore() {
     }
@@ -25,7 +25,13 @@ public class DataStore {
     }
 
     public String getRole() {
-        return this.role;
+        return this.replicationInfo.getRole();
+    }
+
+    public void setAsReplica(String masterHost,int masterPort) {
+        this.replicationInfo.setRole("slave");
+        this.replicationInfo.setMasterHost(masterHost);
+        this.replicationInfo.setMasterPort(masterPort);
     }
 
     // --- 字符串操作 ---

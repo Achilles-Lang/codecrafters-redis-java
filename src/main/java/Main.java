@@ -1,5 +1,6 @@
 import Commands.CommandHandler;
 import Service.ClientHandler;
+import Storage.DataStore;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -11,25 +12,29 @@ public class Main {
 
       //1.设置默认端口号
       int port = 6379;
+      String masterHost = null;
+      int masterPort = -1;
 
-      //2.检查命令行参数，查找“--port”
+      //2.检查命令行参数
       if (args.length>1){
           for (int i = 0; i < args.length; i++) {
               if ("--port".equalsIgnoreCase(args[i])) {
                   if(i+1<args.length){
-                      try {
-                          port = Integer.parseInt(args[i+1]);
-                          break;
-                      } catch (NumberFormatException e){
-                          System.out.println("Invalid port number: " + args[i + 1]);
-                          return;
-                      }
+                    port=Integer.parseInt(args[i+1]);
+                    i++;
+                  }
+              } else if ("--replicaof".equalsIgnoreCase(args[i])) {
+                  if(i+2<args.length){
+                      masterHost=args[i+1];
+                      masterPort=Integer.parseInt(args[i+2]);
+                      i+=2;
                   }
               }
           }
       }
-      System.out.println("Server is configured to listen on port: " + port);
-
+      if (masterHost!=null&&masterPort!=-1){
+          DataStore.getInstance().setAsReplica(masterHost, masterPort);
+      }
       try (ServerSocket serverSocket = new ServerSocket(port)) {
           serverSocket.setReuseAddress(true);
           CommandHandler commandHandler = new CommandHandler(); // 创建一个命令处理器
