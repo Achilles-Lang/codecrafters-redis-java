@@ -81,10 +81,17 @@ public class DataStore {
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1 (错误码)。
      */
     public synchronized int rpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
+        long threadId = Thread.currentThread().getId();
+        System.out.println("[DataStore.rpush][Thread-" + threadId + "] START for key: " + key);
+
         List<byte[]> list = getOrCreateList(key);
         list.addAll(valuesToPush);
+
+        System.out.println("[DataStore.rpush][Thread-" + threadId + "] Notifying waiters...");
         this.notifyAll();
-        return  list.size();
+
+        System.out.println("[DataStore.rpush][Thread-" + threadId + "] FINISH. New size: " + list.size());
+        return list.size();
     }
 
     /**
@@ -166,32 +173,41 @@ public class DataStore {
      * @throws InterruptedException 如果线程在等待时被中断。
      */
     public synchronized Object[] blpop(List<byte[]> keys, double timeoutSeconds) throws WrongTypeException, InterruptedException {
-        long deadLine = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long) (timeoutSeconds * 1000)) : 0;
+        long threadId = Thread.currentThread().getId();
+        System.out.println("[DataStore.blpop][Thread-" + threadId + "] START");
+        long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
+
         while (true) {
+            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Loop top. Checking keys.");
             for (byte[] keyBytes : keys) {
-                String blpopKey = new String(keyBytes, StandardCharsets.UTF_8);
-                Object value = map.get(blpopKey);
+                String key = new String(keyBytes, StandardCharsets.UTF_8);
+                Object value = map.get(key);
                 if (value != null) {
                     if (!(value instanceof List)) {
+                        System.out.println("[DataStore.blpop][Thread-" + threadId + "] CRASH? WrongTypeException about to be thrown.");
                         throw new WrongTypeException("Operation against a key holding the wrong kind of value");
                     }
                     LinkedList<byte[]> list = (LinkedList<byte[]>) value;
                     if (!list.isEmpty()) {
+                        System.out.println("[DataStore.blpop][Thread-" + threadId + "] Found item in '" + key + "'. Returning.");
                         return new Object[]{keyBytes, list.removeFirst()};
                     }
                 }
             }
 
-            long remainingTime;
-            if(timeoutSeconds>0){
-                remainingTime = deadLine-System.currentTimeMillis();
-                if(remainingTime<=0){
+            System.out.println("[DataStore.blpop][Thread-" + threadId + "] No items found. Preparing to wait.");
+            long remainingTime = 0;
+            if (timeoutSeconds > 0) {
+                remainingTime = deadline - System.currentTimeMillis();
+                if (remainingTime <= 0) {
+                    System.out.println("[DataStore.blpop][Thread-" + threadId + "] Timeout reached before waiting. Returning null.");
                     return null;
                 }
-            }else {
-                remainingTime = 0;
             }
+
+            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Waiting for " + remainingTime + "ms...");
             this.wait(remainingTime);
+            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Woke up from wait.");
         }
     }
 
