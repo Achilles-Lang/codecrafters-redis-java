@@ -24,10 +24,13 @@ public class Main {
                     i++;
                   }
               } else if ("--replicaof".equalsIgnoreCase(args[i])) {
-                  if(i+2<args.length){
-                      masterHost=args[i+1];
-                      masterPort=Integer.parseInt(args[i+2]);
-                      i+=2;
+                  if(i+1<args.length){
+                      String[] replicaInfo=args[i+1].split("\\s+");
+                      if(replicaInfo.length==2){
+                          masterHost=replicaInfo[0];
+                          masterPort=Integer.parseInt(replicaInfo[1]);
+                      }
+                      i++;
                   }
               }
           }
@@ -41,9 +44,7 @@ public class Main {
 
           while (true) {
               Socket clientSocket = serverSocket.accept();
-              // 将命令处理器传递给每个客户端线程
-              Thread clientThread = new Thread(new ClientHandler(clientSocket, commandHandler));
-              clientThread.start();
+              new Thread(new ClientHandler(clientSocket, commandHandler)).start();
           }
       } catch (IOException e) {
           System.out.println("IOException in Main: " + e.getMessage());
