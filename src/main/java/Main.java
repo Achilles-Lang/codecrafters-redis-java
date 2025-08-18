@@ -30,7 +30,7 @@ public class Main {
       }
       System.out.println("Server is configured to listen on port: " + port);
 
-      try (ServerSocket serverSocket = new ServerSocket(6379)) {
+      try (ServerSocket serverSocket = new ServerSocket(port)) {
           serverSocket.setReuseAddress(true);
           CommandHandler commandHandler = new CommandHandler(); // 创建一个命令处理器
 
