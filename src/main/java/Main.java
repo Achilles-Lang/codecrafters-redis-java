@@ -40,8 +40,7 @@ public class Main {
       }
       try (ServerSocket serverSocket = new ServerSocket(port)) {
           serverSocket.setReuseAddress(true);
-          CommandHandler commandHandler = new CommandHandler(); // 创建一个命令处理器
-
+          CommandHandler commandHandler = new CommandHandler();
           while (true) {
               Socket clientSocket = serverSocket.accept();
               new Thread(new ClientHandler(clientSocket, commandHandler)).start();
