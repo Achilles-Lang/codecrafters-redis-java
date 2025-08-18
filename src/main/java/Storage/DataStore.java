@@ -69,6 +69,11 @@ public class DataStore {
         if(!(value instanceof List)){
             throw new WrongTypeException("Operation against a key holding the wrong kind of value");
         }
+        if(!(value instanceof LinkedList)){
+            LinkedList<byte[]> newList = new LinkedList<>((List<byte[]>) value);
+            map.put(key, newList);
+            return newList;
+        }
         return (LinkedList<byte[]>) value;
     }
 
@@ -173,41 +178,40 @@ public class DataStore {
      * @throws InterruptedException 如果线程在等待时被中断。
      */
     public synchronized Object[] blpop(List<byte[]> keys, double timeoutSeconds) throws WrongTypeException, InterruptedException {
-        long threadId = Thread.currentThread().getId();
-        System.out.println("[DataStore.blpop][Thread-" + threadId + "] START");
         long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
 
         while (true) {
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Loop top. Checking keys.");
+            // 在每次循环开始时，都检查是否有立即可用的元素
             for (byte[] keyBytes : keys) {
                 String key = new String(keyBytes, StandardCharsets.UTF_8);
                 Object value = map.get(key);
                 if (value != null) {
+                    // 确保是 List 类型
                     if (!(value instanceof List)) {
-                        System.out.println("[DataStore.blpop][Thread-" + threadId + "] CRASH? WrongTypeException about to be thrown.");
                         throw new WrongTypeException("Operation against a key holding the wrong kind of value");
                     }
                     LinkedList<byte[]> list = (LinkedList<byte[]>) value;
+                    // 检查是否为空
                     if (!list.isEmpty()) {
-                        System.out.println("[DataStore.blpop][Thread-" + threadId + "] Found item in '" + key + "'. Returning.");
+                        // 如果找到，立即移除并返回
                         return new Object[]{keyBytes, list.removeFirst()};
                     }
                 }
             }
 
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] No items found. Preparing to wait.");
-            long remainingTime = 0;
+            // 如果没有可用元素，则计算剩余时间并等待
+            long remainingTime;
             if (timeoutSeconds > 0) {
                 remainingTime = deadline - System.currentTimeMillis();
                 if (remainingTime <= 0) {
-                    System.out.println("[DataStore.blpop][Thread-" + threadId + "] Timeout reached before waiting. Returning null.");
-                    return null;
+                    return null; // 超时
                 }
+            } else {
+                remainingTime = 0; // 无限等待
             }
 
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Waiting for " + remainingTime + "ms...");
             this.wait(remainingTime);
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Woke up from wait.");
+            // 醒来后，while(true) 会让程序从头开始，重新检查所有 key
         }
     }
 
