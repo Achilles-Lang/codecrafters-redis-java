@@ -34,9 +34,9 @@ public class MasterConnectionHandler implements Runnable{
 
             //2
             sendCommand(outputStream, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            readResponse(inputStream); // 假设已验证是 OK
+            readResponse(inputStream);
             sendCommand(outputStream, "REPLCONF", "capa", "psync2");
-            readResponse(inputStream); // 假设已验证是 OK
+            readResponse(inputStream);
 
             // --- **新增**: 阶段 3: 发送 PSYNC ---
             System.out.println("Sending PSYNC ? -1");
