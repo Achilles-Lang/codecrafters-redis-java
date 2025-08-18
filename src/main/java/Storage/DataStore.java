@@ -55,6 +55,18 @@ public class DataStore {
         // 如果 key 存在但不是字符串类型（比如是列表），也返回 null
         return null;
     }
+    private LinkedList<byte[]> getOrCreateList(String key) throws WrongTypeException{
+        Object value = map.get(key);
+        if(value==null) {
+            LinkedList<byte[]> newList = new LinkedList<>();
+            map.put(key, newList);
+            return newList;
+        }
+        if(!(value instanceof List)){
+            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+        }
+        return (LinkedList<byte[]>) value;
+    }
 
     // --- 列表操作 ---
 
@@ -65,23 +77,10 @@ public class DataStore {
      * @return 返回操作后列表的长度。如果 key 存在但不是列表，则返回 -1 (错误码)。
      */
     public synchronized int rpush(String key, List<byte[]> valuesToPush) throws WrongTypeException {
-        Object value = map.get(key);
-        List<byte[]> list;
-        if (value == null) {
-            // 如果 key 不存在，创建新列表
-            list = new LinkedList<>();
-            map.put(key, list);
-        } else if (value instanceof List) {
-            // 如果是列表，直接使用
-            list = (List<byte[]>) value;
-        } else {
-            // 如果 key 存在但不是列表，返回错误码
-            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
-        }
-
+        List<byte[]> list = getOrCreateList(key);
         list.addAll(valuesToPush);
         this.notifyAll();
-        return list.size();
+        return  list.size();
     }
 
     /**
@@ -178,11 +177,17 @@ public class DataStore {
                     }
                 }
             }
-            long remainingTime = (timeoutSeconds > 0) ? deadLine - System.currentTimeMillis() : 0;
-            if (timeoutSeconds > 0 && remainingTime <= 0) {
-                return null;
+
+            long remainingTime;
+            if(timeoutSeconds>0){
+                remainingTime = deadLine-System.currentTimeMillis();
+                if(remainingTime<=0){
+                    return null;
+                }
+            }else {
+                remainingTime = 0;
             }
-            this.wait(timeoutSeconds == 0 ? 0 : remainingTime);
+            this.wait(remainingTime);
         }
     }
 
