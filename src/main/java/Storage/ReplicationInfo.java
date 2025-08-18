@@ -7,8 +7,8 @@ public class ReplicationInfo {
     private String role = "master";
     private String masterHost;
     private int masterPort;
-    private String masterReplid = "0";
-    private int masterReplOffset = 0;
+    private final String masterReplid = "8371b4fb1155b71f4a04d3e1bc3e18c469de59a0";
+    private final long masterReplOffset = 0L;
 
     public String getRole() {
         return role;
@@ -38,15 +38,9 @@ public class ReplicationInfo {
         return masterReplid;
     }
 
-    public void setMasterReplid(String masterReplid) {
-        this.masterReplid = masterReplid;
-    }
-
-    public int getMasterReplOffset() {
+    public long getMasterReplOffset() {
         return masterReplOffset;
     }
 
-    public void setMasterReplOffset(int masterReplOffset) {
-        this.masterReplOffset = masterReplOffset;
-    }
+
 }

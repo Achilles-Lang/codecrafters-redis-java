@@ -2,9 +2,11 @@ package Commands.Impl;
 
 import Commands.Command;
 import Storage.DataStore;
+import Storage.ReplicationInfo;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.StringJoiner;
 
 /**
  * @author Achilles
@@ -21,14 +23,14 @@ public class InfoCommand implements Command {
         // 即使没有参数，或者参数不是 "replication"，对于此阶段我们都返回角色信息
         if (args.isEmpty() || "replication".equalsIgnoreCase(new String(args.get(0), StandardCharsets.UTF_8))) {
 
-            // 1. 从 DataStore 获取角色信息
-            String role = DataStore.getInstance().getRole();
+            ReplicationInfo info=DataStore.getInstance().getReplicationInfo();
 
-            // 2. 构建响应字符串
-            String replicationInfo = "role:" + role;
+            StringJoiner sj=new StringJoiner("\r\n");
+            sj.add("role:"+info.getRole());
+            sj.add("master_replid:" + info.getMasterReplid());
+            sj.add("master_repl_offset:" + info.getMasterReplOffset());
 
-            // 3. 将字符串作为 byte[] 返回，RespEncoder 会自动将其编码为 Bulk String
-            return replicationInfo.getBytes(StandardCharsets.UTF_8);
+            return  sj.toString().getBytes(StandardCharsets.UTF_8);
         }
 
         // 如果是其他 section，可以返回空字符串

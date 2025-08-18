@@ -28,6 +28,10 @@ public class DataStore {
         return this.replicationInfo.getRole();
     }
 
+    public ReplicationInfo getReplicationInfo() {
+        return this.replicationInfo;
+    }
+
     public void setAsReplica(String masterHost,int masterPort) {
         this.replicationInfo.setRole("slave");
         this.replicationInfo.setMasterHost(masterHost);
