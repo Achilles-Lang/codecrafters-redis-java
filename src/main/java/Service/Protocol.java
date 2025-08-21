@@ -110,7 +110,6 @@ public class Protocol {
 
         return data;
     }
-
     /**
      * 读取一个以 CRLF 结尾的行，并将其内容解析为整数。
      */
