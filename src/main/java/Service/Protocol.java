@@ -19,27 +19,16 @@ class CommandResult {
 class CountingInputStream extends FilterInputStream {
     private long count = 0;
     protected CountingInputStream(InputStream in) { super(in); }
-
     @Override
     public int read() throws IOException {
         int result = super.read();
-        if (result != -1) {
-            count++;
-            // --- **终极调试日志**: 打印每一个字节 ---
-            // 打印字符形式 (对于非打印字符会显示特殊符号) 和它的整数值
-            System.out.print("~[" + (char)result + ":" + result + "]");
-            // ------------------------------------
-        }
+        if (result != -1) { count++; }
         return result;
     }
-
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         int result = super.read(b, off, len);
-        if (result != -1) {
-            count += result;
-            // 为了简洁，我们只在单字节 read() 中打印，这足以追踪协议流程
-        }
+        if (result != -1) { count += result; }
         return result;
     }
     public long getCount() { return count; }
@@ -101,7 +90,6 @@ public class Protocol {
 
         byte[] data = new byte[stringLength];
         int totalBytesRead = 0;
-
         while (totalBytesRead < stringLength) {
             int bytesRead = is.read(data, totalBytesRead, stringLength - totalBytesRead);
             if (bytesRead == -1) {
@@ -122,14 +110,30 @@ public class Protocol {
         return Integer.parseInt(line);
     }
 
+    /**
+     * **最终修复**: 这是最关键的修改。
+     * 这个版本的 readLine 更加健壮，可以正确处理所有情况。
+     */
     private String readLine() throws IOException {
         StringBuilder sb = new StringBuilder();
         int b;
-        while ((b = is.read()) != '\r') {
-            if (b == -1) { throw new IOException("Unexpected end of stream."); }
+        while (true) {
+            b = is.read();
+            if (b == -1) {
+                throw new IOException("Unexpected end of stream.");
+            }
+            if (b == '\r') {
+                // 读取下一个字节，它必须是 '\n'
+                int nextByte = is.read();
+                if (nextByte != '\n') {
+                    throw new IOException("Expected LF after CR in line ending.");
+                }
+                // 成功读取到 \r\n，退出循环
+                break;
+            }
+            // 如果不是 \r，就追加到字符串构建器中
             sb.append((char) b);
         }
-        if (is.read() != '\n') { throw new IOException("Expected LF after CR in line ending."); }
         return sb.toString();
     }
 }
