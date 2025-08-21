@@ -2,6 +2,7 @@ import Commands.CommandHandler;
 import Service.ClientHandler;
 import Service.MasterConnectionHandler;
 import Storage.DataStore;
+import Storage.ReplicationInfo;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -36,17 +37,21 @@ public class Main {
               }
           }
       }
-
+      CommandHandler commandHandler=new CommandHandler();
       if (masterHost!=null&&masterPort!=-1){
           DataStore.getInstance().setAsReplica(masterHost, masterPort);
-          MasterConnectionHandler masterConnectionHandler=new MasterConnectionHandler(masterHost, masterPort,port);
+          MasterConnectionHandler masterConnectionHandler=new MasterConnectionHandler(masterHost, masterPort,port,commandHandler);
           new Thread(masterConnectionHandler).start();
 
       }
-
+      if ("slave".equals(DataStore.getInstance().getReplicationInfo().getRole())) {
+          ReplicationInfo info = DataStore.getInstance().getReplicationInfo();
+          // 将 commandHandler 传进去
+          MasterConnectionHandler masterHandler = new MasterConnectionHandler(info.getMasterHost(), info.getMasterPort(), info.getMasterPort(), commandHandler);
+          new Thread(masterHandler).start();
+      }
       try (ServerSocket serverSocket = new ServerSocket(port)) {
           serverSocket.setReuseAddress(true);
-          CommandHandler commandHandler = new CommandHandler();
           while (true) {
               Socket clientSocket = serverSocket.accept();
               new Thread(new ClientHandler(clientSocket, commandHandler)).start();

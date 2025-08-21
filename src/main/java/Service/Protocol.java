@@ -97,4 +97,10 @@ public class Protocol {
         }
         return baos.toString(StandardCharsets.UTF_8);
     }
+    public byte[] readRdbFile() throws IOException{
+        if(inputStream.read()=='$'){
+            return parseBulkString();
+        }
+        return null;
+    }
 }
