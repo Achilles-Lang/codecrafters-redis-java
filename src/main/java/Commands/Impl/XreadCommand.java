@@ -2,12 +2,10 @@ package Commands.Impl;
 
 import Commands.Command;
 import Config.WrongTypeException;
-import Service.ClientHandler;
 import Storage.DataStore;
 import Storage.StreamEntry;
 import Storage.StreamEntryID;
 
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -19,7 +17,7 @@ public class XreadCommand implements Command {
     private static final StreamEntryID LATEST_ID_PLACEHOLDER = new StreamEntryID(-1, -1);
 
     @Override
-    public Object execute(List<byte[]> args, ClientHandler clientHandler) {
+    public Object execute(List<byte[]> args) {
         // XREAD streams <key> <id>
         try {
             //默认，非阻塞

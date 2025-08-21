@@ -1,8 +1,5 @@
 package Commands;
 
-import Service.ClientHandler;
-
-import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -10,5 +7,5 @@ import java.util.List;
  * 所有命令的统一接口
  */
 public interface Command {
-    Object execute(List<byte[]> args, ClientHandler clientHandler);
+    Object execute(List<byte[]> args);
 }

@@ -2,12 +2,10 @@ package Commands.Impl;
 
 import Commands.Command;
 import Config.WrongTypeException;
-import Service.ClientHandler;
 import Storage.DataStore;
 import Storage.StreamEntry;
 import Storage.StreamEntryID;
 
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +13,7 @@ import java.util.Map;
 
 public class XrangeCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args, ClientHandler clientHandler) {
+    public Object execute(List<byte[]> args) {
         if (args.size() != 3) {
             return new Exception("wrong number of arguments for 'xrange' command");
         }

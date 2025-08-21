@@ -1,9 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
-import Service.ClientHandler;
 
-import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -15,7 +13,7 @@ import java.util.List;
  */
 public class PingCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args, ClientHandler clientHandler) {
+    public Object execute(List<byte[]> args) {
         if(args.isEmpty()){
             //情况1：命令是PING 没有参数，返回PONG
             //ClientHandler的sendResponse方法会把他编码成“+PONG\r\n”

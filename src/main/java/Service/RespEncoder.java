@@ -26,16 +26,10 @@ public class RespEncoder {
             os.write((":" + result + "\r\n").getBytes()); // Integer
         } else if (result instanceof List) {
             List<?> list = (List<?>) result;
-
-            if(!list.isEmpty()&&list.get(0) instanceof byte[]){
-                os.write(("*" + list.size() + "\r\n").getBytes());
-                for (Object item : list) {
-                    byte[] part=(byte[]) item;
-                    os.write(('$' + String.valueOf(part.length) + "\r\n").getBytes());
-                    os.write(part);
-                    os.write("\r\n".getBytes());
-                }
-                return;
+            os.write(("*" + list.size() + "\r\n").getBytes());
+            for (Object item : list) {
+                // 递归编码数组中的每个元素
+                encode(os, item);
             }
         } else if (result instanceof StreamEntryID) {
             String idStr = result.toString();

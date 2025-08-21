@@ -1,12 +1,9 @@
 package Commands.Impl;
 
 import Commands.Command;
-import Commands.WriteCommand;
-import Service.ClientHandler;
 import Storage.DataStore;
 import Storage.ValueEntry;
 
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -16,9 +13,9 @@ import java.util.List;
  * Incr 命令: 对字符串类型的键进行自增操作
  * 参数：key
  */
-public class IncrCommand implements WriteCommand {
+public class IncrCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args, ClientHandler clientHandler) {
+    public Object execute(List<byte[]> args) {
         if (args.size() != 1) {
             return new Exception("wrong number of arguments for 'incr' command");
         }
