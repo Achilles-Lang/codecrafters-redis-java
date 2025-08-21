@@ -36,29 +36,22 @@ public class MasterConnectionHandler implements Runnable {
             InputStream is = new BufferedInputStream(masterSocket.getInputStream());
             Protocol parser = new Protocol(is);
 
-            // --- **已恢复的握手流程** ---
-            // 阶段 1: PING
+            // --- 握手流程 ---
             System.out.println("Sending PING to master...");
             sendCommand(os, "PING");
-            String pingResponse = parser.readSimpleString();
-            System.out.println("Received from master: " + pingResponse);
+            parser.readSimpleString();
 
-            // 阶段 2: REPLCONF
             System.out.println("Sending REPLCONF listening-port...");
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            String replconfPortResponse = parser.readSimpleString();
-            System.out.println("Received from master: " + replconfPortResponse);
+            parser.readSimpleString();
 
             System.out.println("Sending REPLCONF capa psync2...");
             sendCommand(os, "REPLCONF", "capa", "psync2");
-            String replconfCapaResponse = parser.readSimpleString();
-            System.out.println("Received from master: " + replconfCapaResponse);
+            parser.readSimpleString();
 
-            // 阶段 3: PSYNC
             System.out.println("Sending PSYNC...");
             sendCommand(os, "PSYNC", "?", "-1");
-            String psyncResponse = parser.readSimpleString();
-            System.out.println("Received from master: " + psyncResponse);
+            parser.readSimpleString();
 
             // --- 处理 RDB 文件 ---
             System.out.println("Waiting for RDB file...");
@@ -76,9 +69,9 @@ public class MasterConnectionHandler implements Runnable {
                 is.readNBytes(rdbLength);
                 System.out.println("RDB file received and processed.");
             }
-            is.read();
-            is.read();
-            System.out.println("RDB file's trailing CRLF consumed.");
+            // **关键修复**: 移除了之前错误的 is.read() 调用。
+            // RDB 文件数据之后没有 \r\n，直接就是下一个命令。
+
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             // --- 命令处理循环 ---
