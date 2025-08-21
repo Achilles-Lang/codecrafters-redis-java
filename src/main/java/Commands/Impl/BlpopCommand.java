@@ -1,13 +1,11 @@
 package Commands.Impl;
 
 import Commands.Command;
-import Config.WrongTypeException;
 import Storage.DataStore;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -24,25 +22,40 @@ public class BlpopCommand implements Command {
         }
 
         try {
-            double timeout = Double.parseDouble(new String(args.get(args.size() - 1)));
+            // It's safer to parse timeout as long to avoid floating point issues
+            long timeout = Long.parseLong(new String(args.get(args.size() - 1)));
             List<byte[]> keys = args.subList(0, args.size() - 1);
-            String keysStr = new String(keys.get(0)); // 简化日志
+            String keysStr = new String(keys.get(0), StandardCharsets.UTF_8);
 
             System.out.println("[BlpopCommand][Thread-" + threadId + "] Calling DataStore.blpop for key: " + keysStr);
+            // Assuming DataStore.blpop returns Object[] where elements are byte[]
             Object[] result = DataStore.getInstance().blpop(keys, timeout);
             System.out.println("[BlpopCommand][Thread-" + threadId + "] DataStore.blpop returned.");
 
             if (result == null) {
                 System.out.println("[BlpopCommand][Thread-" + threadId + "] Result is null (timeout). Returning null.");
-                return null;
+                return null; // This will be encoded as a RESP Null Bulk String
             } else {
                 System.out.println("[BlpopCommand][Thread-" + threadId + "] Result is not null. Formatting response.");
-                return Arrays.asList(result);
+                // **KEY CHANGE**: Convert the Object[] to a List<byte[]>
+                // This is the precise format needed for a RESP Array response.
+                List<byte[]> responseList = new ArrayList<>();
+                for (Object item : result) {
+                    if (item instanceof byte[]) {
+                        responseList.add((byte[]) item);
+                    } else if (item instanceof String) {
+                        // Add flexibility in case your DataStore returns Strings
+                        responseList.add(((String) item).getBytes(StandardCharsets.UTF_8));
+                    }
+                }
+                return responseList;
             }
-        } catch (Throwable t) { // 捕获所有类型的异常，包括 Error
-            System.out.println("[BlpopCommand][Thread-" + threadId + "] !!! FATAL CRASH CAUGHT !!!");
-            t.printStackTrace(System.out); // 这会打印出完整的错误堆栈
-            return new Exception("Fatal error in BLPOP: " + t.getMessage());
+        } catch (NumberFormatException e) {
+            return new Exception("ERR timeout is not an integer or out of range");
+        } catch (Exception e) {
+            System.err.println("[BlpopCommand][Thread-" + threadId + "] An error occurred:");
+            e.printStackTrace(System.err);
+            return new Exception("Fatal error in BLPOP: " + e.getMessage());
         }
     }
 }

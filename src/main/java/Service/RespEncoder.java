@@ -1,5 +1,6 @@
 package Service;
 
+import Config.WrongTypeException;
 import Storage.StreamEntryID;
 import Storage.ValueEntry;
 
@@ -28,9 +29,12 @@ public class RespEncoder {
             os.write((":" + result + "\r\n").getBytes()); // Integer
         } else if (result instanceof List) {
             List<?> list = (List<?>) result;
-            os.write(("*" + list.size() + "\r\n").getBytes());
+            // Write the array header, e.g., *2\r\n
+            os.write(("*"+ list.size() + "\r\n").getBytes(StandardCharsets.UTF_8));
+
+            // Recursively encode each item in the list
             for (Object item : list) {
-                // 递归编码数组中的每个元素
+                // This recursive call is powerful. It allows you to handle nested arrays in the future.
                 encode(os, item);
             }
         } else if (result instanceof StreamEntryID) {
@@ -40,7 +44,7 @@ public class RespEncoder {
             encode(os, ((ValueEntry) result).value);
         } else if (result instanceof Exception) {
             String message = ((Exception) result).getMessage();
-            if (result instanceof Config.WrongTypeException) { // 确保包名正确
+            if (result instanceof WrongTypeException) { // 确保包名正确
                 os.write(("-WRONGTYPE " + message + "\r\n").getBytes());
             } else {
                 os.write(("-ERR " + message + "\r\n").getBytes());
