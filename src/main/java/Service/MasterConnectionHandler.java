@@ -29,7 +29,6 @@ public class MasterConnectionHandler implements Runnable {
     public void run() {
         try (Socket masterSocket = new Socket(masterHost, masterPort)) {
             OutputStream os = masterSocket.getOutputStream();
-            // 仍然使用 BufferedInputStream 以提高效率
             InputStream is = new BufferedInputStream(masterSocket.getInputStream());
             Protocol parser = new Protocol(is);
 
@@ -48,15 +47,14 @@ public class MasterConnectionHandler implements Runnable {
 
             System.out.println("Sending PSYNC...");
             sendCommand(os, "PSYNC", "?", "-1");
-            parser.readSimpleString(); // 读取 +FULLRESYNC...
+            parser.readSimpleString();
 
-            // --- **关键修复**: 将 RDB 文件处理委托给 parser ---
             System.out.println("Waiting for RDB file...");
             parser.readRdbFile();
 
             System.out.println("Handshake successful. Listening for propagated commands.");
 
-            // --- 命令处理循环 ---
+            // --- 关键修复: 重写命令处理循环逻辑 ---
             while (!masterSocket.isClosed()) {
                 CommandResult result = parser.readCommandWithCount();
                 if (result == null || result.parts == null || result.parts.isEmpty()) {
@@ -66,24 +64,29 @@ public class MasterConnectionHandler implements Runnable {
                 List<byte[]> commandParts = result.parts;
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
 
-                if ("REPLCONF".equals(commandName) && commandParts.size() > 1
-                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
+                boolean isGetAck = "REPLCONF".equals(commandName) && commandParts.size() > 1
+                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8));
 
+                if (isGetAck) {
+                    // 如果是 GETACK, 立即用 *当前* 的偏移量回复
                     System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
                     sendCommand(os, "REPLCONF", "ACK", String.valueOf(bytesProcessed));
-                    continue;
                 }
 
+                // **无论是什么命令，都必须将它的字节数累加到偏移量中**
                 bytesProcessed += result.bytesRead;
 
-                System.out.println("Received propagated command: " + commandName);
-                List<byte[]> args = commandParts.subList(1, commandParts.size());
-                Command command = this.commandHandler.getCommand(commandName);
+                // 如果命令不是 GETACK，则需要执行它 (PING, SET 等)
+                if (!isGetAck) {
+                    System.out.println("Received propagated command: " + commandName);
+                    List<byte[]> args = commandParts.subList(1, commandParts.size());
+                    Command command = this.commandHandler.getCommand(commandName);
 
-                if (command != null) {
-                    command.execute(args, null);
-                } else {
-                    System.out.println("Unknown propagated command: " + commandName);
+                    if (command != null) {
+                        command.execute(args, null);
+                    } else {
+                        System.out.println("Unknown propagated command: " + commandName);
+                    }
                 }
             }
         } catch (IOException e) {

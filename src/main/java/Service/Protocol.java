@@ -42,35 +42,23 @@ public class Protocol {
         this.is = new CountingInputStream(is);
     }
 
-    /**
-     * 新增方法：专门用于读取和处理 RDB 文件流。
-     * 这样可以确保所有读取操作都通过同一个 CountingInputStream。
-     */
     public void readRdbFile() throws IOException {
         int firstByte = is.read();
         if (firstByte != '$') {
             throw new IOException("Expected '$' for RDB file bulk string, but got: " + (char)firstByte);
         }
-
         int rdbLength = readInteger();
-        System.out.println("RDB file length: " + rdbLength);
-
         if (rdbLength > 0) {
-            // 读取并丢弃 RDB 文件的二进制内容
             long bytesSkipped = 0;
             while (bytesSkipped < rdbLength) {
                 long skipped = is.skip(rdbLength - bytesSkipped);
-                if (skipped == 0) {
-                    // is.skip() might return 0 if it can't skip, so we read a byte to move forward
-                    if (is.read() == -1) {
-                        throw new IOException("Unexpected end of stream while skipping RDB file.");
-                    }
+                if (skipped <= 0) {
+                    if (is.read() == -1) throw new IOException("Unexpected end of stream while skipping RDB file.");
                     bytesSkipped++;
                 } else {
                     bytesSkipped += skipped;
                 }
             }
-            System.out.println("RDB file received and processed.");
         }
     }
 
@@ -94,9 +82,8 @@ public class Protocol {
     }
 
     public String readSimpleString() throws IOException {
-        int firstByte = is.read();
-        if (firstByte == -1) { return null; }
-        if ((char) firstByte != '+') { throw new IOException("Expected Simple String to start with '+', but got " + (char)firstByte); }
+        // Simple String can start with '+' or '-' or ':'
+        // We just need to read the line
         return readLine();
     }
 
@@ -112,11 +99,9 @@ public class Protocol {
 
     private byte[] readBulkString() throws IOException {
         int firstByte = is.read();
-        if (firstByte == -1) { return null; }
-
-        char type = (char) firstByte;
-        if (type != '$') { throw new IOException("Expected Bulk String, but got type: " + type); }
-
+        if (firstByte != '$') {
+            throw new IOException("Expected Bulk String to start with '$', but got " + (char) firstByte);
+        }
         int stringLength = readInteger();
         if (stringLength == -1) { return null; }
 
@@ -133,7 +118,6 @@ public class Protocol {
         if (is.read() != '\r' || is.read() != '\n') {
             throw new IOException("Expected CRLF after bulk string data.");
         }
-
         return data;
     }
 
