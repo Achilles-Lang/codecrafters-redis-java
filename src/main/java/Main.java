@@ -47,7 +47,7 @@ public class Main {
       if ("slave".equals(DataStore.getInstance().getReplicationInfo().getRole())) {
           ReplicationInfo info = DataStore.getInstance().getReplicationInfo();
           // 将 commandHandler 传进去
-          MasterConnectionHandler masterHandler = new MasterConnectionHandler(info.getMasterHost(), info.getMasterPort(), info.getMasterPort(), commandHandler);
+          MasterConnectionHandler masterHandler = new MasterConnectionHandler(info.getMasterHost(), info.getMasterPort(), port, commandHandler);
           new Thread(masterHandler).start();
       }
       try (ServerSocket serverSocket = new ServerSocket(port)) {
