@@ -49,13 +49,13 @@ public class MasterConnectionHandler implements Runnable{
             System.out.println("Sending PSYNC ? -1");
             sendCommand(outputStream, "PSYNC", "?", "-1");
             readResponse(inputStream);
+            // 读取 RDB 文件
             Protocol rdbParser = new Protocol(inputStream);
             rdbParser.readRdbFile();
-            // 读取主节点对 PSYNC 的响应
-            // 响应会是 "+FULLRESYNC <master_replid> <offset>\r\n"
-            String psyncResponse = readResponse(inputStream);
-            System.out.println("Received PSYNC response: " + psyncResponse);
 
+            System.out.println("Handshake successful. Listening for propagated commands.");
+
+            // --- **新增**: 命令处理循环 ---
             Protocol commandParser = new Protocol(inputStream);
             while (!masterSocket.isClosed()) {
                 // 1. 从主节点连接中读取并解析命令
@@ -64,16 +64,14 @@ public class MasterConnectionHandler implements Runnable{
                     break; // 连接已关闭
                 }
 
-                System.out.println("Received propagated command from master.");
-
                 // 2. 查找并执行命令
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8);
                 List<byte[]> args = commandParts.subList(1, commandParts.size());
                 Command command = this.commandHandler.getCommand(commandName);
 
                 if (command != null) {
-                    // 3. 执行命令，但忽略返回值，不发送任何响应
-                    // 注意：因为从节点不需要响应或注册自己，所以 clientHandler 参数可以传 null
+                    // 3. 执行命令以更新从节点自己的 DataStore
+                    // 我们不需要响应，所以 ClientHandler 上下文传 null
                     command.execute(args, null);
                 }
             }
