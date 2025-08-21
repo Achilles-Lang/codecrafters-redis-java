@@ -46,7 +46,6 @@ public class ClientHandler implements Runnable{
                 if(commandParts == null || commandParts.isEmpty()){
                     break;
                 }
-
                 String commandName=new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
                 if(inTransaction){
