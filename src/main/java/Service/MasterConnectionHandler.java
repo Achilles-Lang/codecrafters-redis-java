@@ -10,7 +10,6 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.function.LongUnaryOperator;
 
 /**
  * @author Achilles
@@ -21,9 +20,7 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-    // 新增：用于追踪处理的字节数，作为复制偏移量
-    private long bytesProcessed = 0L;
-    private long processedBytes=0L;
+    private long bytesProcessed = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -32,52 +29,90 @@ public class MasterConnectionHandler implements Runnable {
         this.commandHandler = commandHandler;
     }
 
-    // 在 MasterConnectionHandler.java 中，用这个版本替换掉旧的 run 方法
-// 在 Service/MasterConnectionHandler.java 中
     @Override
     public void run() {
         try (Socket masterSocket = new Socket(masterHost, masterPort)) {
             OutputStream os = masterSocket.getOutputStream();
-            InputStream is = masterSocket.getInputStream();
+            InputStream is = new BufferedInputStream(masterSocket.getInputStream());
+            Protocol parser = new Protocol(is);
 
-            // ... (握手逻辑 PING, REPLCONF, PSYNC, readRdbFile 保持不变) ...
+            // --- **已恢复的握手流程** ---
+            // 阶段 1: PING
+            System.out.println("Sending PING to master...");
+            sendCommand(os, "PING");
+            String pingResponse = parser.readSimpleString();
+            System.out.println("Received from master: " + pingResponse);
+
+            // 阶段 2: REPLCONF
+            System.out.println("Sending REPLCONF listening-port...");
+            sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
+            String replconfPortResponse = parser.readSimpleString();
+            System.out.println("Received from master: " + replconfPortResponse);
+
+            System.out.println("Sending REPLCONF capa psync2...");
+            sendCommand(os, "REPLCONF", "capa", "psync2");
+            String replconfCapaResponse = parser.readSimpleString();
+            System.out.println("Received from master: " + replconfCapaResponse);
+
+            // 阶段 3: PSYNC
+            System.out.println("Sending PSYNC...");
+            sendCommand(os, "PSYNC", "?", "-1");
+            String psyncResponse = parser.readSimpleString();
+            System.out.println("Received from master: " + psyncResponse);
+
+            // --- 处理 RDB 文件 ---
+            System.out.println("Waiting for RDB file...");
+            // 读取 '$' 符号
+            is.read();
+            StringBuilder lengthBuilder = new StringBuilder();
+            int nextByte;
+            while ((nextByte = is.read()) != '\r') {
+                lengthBuilder.append((char) nextByte);
+            }
+            is.read(); // 跳过 '\n'
+            int rdbLength = Integer.parseInt(lengthBuilder.toString());
+            System.out.println("RDB file length: " + rdbLength);
+            if (rdbLength > 0) {
+                is.readNBytes(rdbLength);
+                System.out.println("RDB file received and processed.");
+            }
+            // --- 握手流程结束 ---
+
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             // --- 命令处理循环 ---
-            Protocol commandParser = new Protocol(is);
             while (!masterSocket.isClosed()) {
-                List<byte[]> commandParts = commandParser.readCommand();
-                if (commandParts == null || commandParts.isEmpty()) {
+                CommandResult result = parser.readCommandWithCount();
+                if (result == null || result.parts == null || result.parts.isEmpty()) {
                     break;
                 }
 
-                // **关键修复点**
-                // 1. 先解析出命令名和参数
-                String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
-                List<byte[]> args = commandParts.subList(1, commandParts.size()); // <-- 在这里一次性声明和初始化 args
+                List<byte[]> commandParts = result.parts;
+                String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
 
-                // 2. 然后再使用 commandName 和 args 进行判断
-                if ("replconf".equals(commandName) && !args.isEmpty() && "getack".equalsIgnoreCase(new String(args.get(0)))) {
-                    // 回复 GETACK
-                    sendCommand(os, "REPLCONF", "ACK", String.valueOf(this.processedBytes));
-                    System.out.println("Responded to GETACK with offset: " + this.processedBytes);
+                if ("REPLCONF".equals(commandName) && commandParts.size() > 1
+                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
+
+                    System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
+                    sendCommand(os, "REPLCONF", "ACK", String.valueOf(bytesProcessed));
+                    continue;
+                }
+
+                bytesProcessed += result.bytesRead;
+
+                System.out.println("Received propagated command: " + commandName);
+                List<byte[]> args = commandParts.subList(1, commandParts.size());
+                Command command = this.commandHandler.getCommand(commandName);
+
+                if (command != null) {
+                    command.execute(args, null);
                 } else {
-                    // 处理普通传播命令
-                    long commandSize = calculateRespSize(commandParts);
-
-                    Command command = this.commandHandler.getCommand(commandName);
-                    if (command != null) {
-                        // 这里使用的 args 就是上面声明的那个
-                        command.execute(args, null);
-                    }
-
-                    // 累加已处理的字节数
-                    this.processedBytes += commandSize;
+                    System.out.println("Unknown propagated command: " + commandName);
                 }
             }
-
         } catch (IOException e) {
             System.out.println("IOException in MasterConnectionHandler: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -90,19 +125,5 @@ public class MasterConnectionHandler implements Runnable {
         }
         os.write(commandBuilder.toString().getBytes(StandardCharsets.UTF_8));
         os.flush();
-    }
-
-    public long getProcessedBytes() {
-        return processedBytes;
-    }
-    private long calculateRespSize(List<byte[]> parts){
-        long size = 0;
-        size += ("*" + parts.size() + "\r\n").getBytes().length;
-        for (byte[] part:parts){
-            size+=("$" + part.length + "\r\n").getBytes().length;
-            size+=part.length;
-            size+=2;
-        }
-        return size;
     }
 }
