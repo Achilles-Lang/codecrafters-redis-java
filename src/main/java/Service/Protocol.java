@@ -19,16 +19,27 @@ class CommandResult {
 class CountingInputStream extends FilterInputStream {
     private long count = 0;
     protected CountingInputStream(InputStream in) { super(in); }
+
     @Override
     public int read() throws IOException {
         int result = super.read();
-        if (result != -1) { count++; }
+        if (result != -1) {
+            count++;
+            // --- **终极调试日志**: 打印每一个字节 ---
+            // 打印字符形式 (对于非打印字符会显示特殊符号) 和它的整数值
+            System.out.print("~[" + (char)result + ":" + result + "]");
+            // ------------------------------------
+        }
         return result;
     }
+
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         int result = super.read(b, off, len);
-        if (result != -1) { count += result; }
+        if (result != -1) {
+            count += result;
+            // 为了简洁，我们只在单字节 read() 中打印，这足以追踪协议流程
+        }
         return result;
     }
     public long getCount() { return count; }
@@ -92,10 +103,6 @@ public class Protocol {
         int totalBytesRead = 0;
 
         while (totalBytesRead < stringLength) {
-            // --- 这是我们植入的“示踪剂” ---
-            System.out.println("[DIAGNOSTIC] >> In robust readBulkString while-loop <<");
-            // --------------------------------
-
             int bytesRead = is.read(data, totalBytesRead, stringLength - totalBytesRead);
             if (bytesRead == -1) {
                 throw new IOException("Unexpected end of stream while reading bulk string data.");
