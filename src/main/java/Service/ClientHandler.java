@@ -2,6 +2,8 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
+import Commands.WriteCommand;
+import Storage.DataStore;
 import util.RdbUtil;
 
 import java.io.IOException;
@@ -58,7 +60,7 @@ public class ClientHandler implements Runnable{
                             Command commandToExecute = commandHandler.getCommand(queuedCommandName);
 
                             if(commandToExecute!=null){
-                                results.add(commandToExecute.execute(queuedArgs));
+                                results.add(commandToExecute.execute(queuedArgs, outputStream));
 
                             }else{
                                 results.add(new Exception("unknown command '" + queuedCommandName + "'"));
@@ -90,10 +92,22 @@ public class ClientHandler implements Runnable{
                         List<byte[]> args=commandParts.subList(1, commandParts.size());
 
                         Command command=commandHandler.getCommand(commandName);
-                        Object result=(command==null)
-                                ? new Exception("unknown command '" + commandName + "'")
-                                :command.execute(args);
+                        Object result;
+                        if(command==null){
+                            result=new Exception("unknown command '" + commandName + "'");
+                        }else{
+                            result = command.execute(args, outputStream);
 
+                        }
+                        if (command instanceof WriteCommand) {
+                            List<OutputStream> replicas = DataStore.getInstance().getReplicas();
+                            for (OutputStream replicaOs : replicas) {
+                                // 将原始的命令字节流 (commandParts) 转发给从节点
+                                // 我们需要一个能编码 List<byte[]> 的方法
+                                RespEncoder.encodeRawCommand(replicaOs, commandParts);
+                                replicaOs.flush();
+                            }
+                        }
                         if(result instanceof FullResyncResponse){
                             FullResyncResponse resync=(FullResyncResponse) result;
 

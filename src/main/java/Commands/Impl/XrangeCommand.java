@@ -6,6 +6,7 @@ import Storage.DataStore;
 import Storage.StreamEntry;
 import Storage.StreamEntryID;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.Map;
 
 public class XrangeCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, OutputStream os) {
         if (args.size() != 3) {
             return new Exception("wrong number of arguments for 'xrange' command");
         }

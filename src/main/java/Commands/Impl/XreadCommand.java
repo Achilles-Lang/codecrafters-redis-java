@@ -6,6 +6,7 @@ import Storage.DataStore;
 import Storage.StreamEntry;
 import Storage.StreamEntryID;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -17,7 +18,7 @@ public class XreadCommand implements Command {
     private static final StreamEntryID LATEST_ID_PLACEHOLDER = new StreamEntryID(-1, -1);
 
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, OutputStream os) {
         // XREAD streams <key> <id>
         try {
             //默认，非阻塞

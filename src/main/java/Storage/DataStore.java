@@ -2,6 +2,7 @@ package Storage;
 
 import Config.WrongTypeException;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,6 +17,8 @@ public class DataStore {
     private final Map<String, Object> map = new ConcurrentHashMap<>();
 
     private final ReplicationInfo replicationInfo =new ReplicationInfo();
+
+    private final List<OutputStream> replicas=new ArrayList<>() ;
 
     private DataStore() {
     }
@@ -495,5 +498,15 @@ public class DataStore {
             }
         }
         return result;
+    }
+
+    // **新增**: 添加一个新的从节点输出流
+    public synchronized void addReplica(OutputStream replicaOutputStream) {
+        replicas.add(replicaOutputStream);
+    }
+
+    // **新增**: 获取所有从节点的输出流的副本
+    public synchronized List<OutputStream> getReplicas() {
+        return new ArrayList<>(replicas); // 返回一个副本以避免并发修改问题
     }
 }

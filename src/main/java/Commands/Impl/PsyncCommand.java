@@ -5,6 +5,7 @@ import Service.FullResyncResponse;
 import Storage.DataStore;
 import Storage.ReplicationInfo;
 
+import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -12,11 +13,10 @@ import java.util.List;
  */
 public class PsyncCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args) {
-        ReplicationInfo info= DataStore.getInstance().getReplicationInfo();
-        String replid=info.getMasterReplid();
-        long offset=info.getMasterReplOffset();
+    public Object execute(List<byte[]> args, OutputStream os) {
+        DataStore.getInstance().addReplica(os);
 
+        ReplicationInfo info = DataStore.getInstance().getReplicationInfo();
         return new FullResyncResponse(info.getMasterReplid(), info.getMasterReplOffset());
     }
 }

@@ -38,4 +38,12 @@ public class RespEncoder {
             os.write(("-ERR " + ((Exception) result).getMessage() + "\r\n").getBytes());
         }
     }
+    public static void encodeRawCommand(OutputStream os, List<byte[]> parts) throws IOException {
+        os.write(("*" + parts.size() + "\r\n").getBytes());
+        for (byte[] part : parts) {
+            os.write(('$' + String.valueOf(part.length) + "\r\n").getBytes());
+            os.write(part);
+            os.write("\r\n".getBytes());
+        }
+    }
 }

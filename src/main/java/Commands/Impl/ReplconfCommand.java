@@ -2,6 +2,7 @@ package Commands.Impl;
 
 import Commands.Command;
 
+import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -11,7 +12,7 @@ import java.util.List;
  */
 public class ReplconfCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, OutputStream os) {
         return "OK";
     }
 }

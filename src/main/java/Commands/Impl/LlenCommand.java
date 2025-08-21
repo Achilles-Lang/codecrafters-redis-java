@@ -4,12 +4,13 @@ import Commands.Command;
 import Config.WrongTypeException;
 import Storage.DataStore;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class LlenCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, OutputStream os) {
         if (args.size() != 1) {
             return new Exception("wrong number of arguments for 'llen' command");
         }

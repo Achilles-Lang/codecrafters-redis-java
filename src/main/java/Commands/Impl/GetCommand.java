@@ -4,6 +4,7 @@ import Storage.ValueEntry;
 import Commands.Command;
 import Storage.DataStore;
 
+import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -11,7 +12,7 @@ import java.util.List;
  */
 public class GetCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, OutputStream os) {
         if(args.size() != 1){
             return new Exception("ERR wrong number of arguments for 'get' command");
         }
