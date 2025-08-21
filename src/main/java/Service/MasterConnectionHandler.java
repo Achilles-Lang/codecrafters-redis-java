@@ -76,8 +76,9 @@ public class MasterConnectionHandler implements Runnable {
                 is.readNBytes(rdbLength);
                 System.out.println("RDB file received and processed.");
             }
-            // --- 握手流程结束 ---
-
+            is.read();
+            is.read();
+            System.out.println("RDB file's trailing CRLF consumed.");
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             // --- 命令处理循环 ---
