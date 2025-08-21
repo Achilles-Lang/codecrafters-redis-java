@@ -1,6 +1,7 @@
 package Service;
 
 import Storage.StreamEntryID;
+import Storage.ValueEntry;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,6 +22,7 @@ public class RespEncoder {
             byte[] arr = (byte[]) result;
             os.write(('$' + String.valueOf(arr.length) + "\r\n").getBytes());
             os.write(arr);
+            // **关键修复**: 添加缺失的 CRLF
             os.write("\r\n".getBytes());
         } else if (result instanceof Long || result instanceof Integer) {
             os.write((":" + result + "\r\n").getBytes()); // Integer
@@ -34,10 +36,18 @@ public class RespEncoder {
         } else if (result instanceof StreamEntryID) {
             String idStr = result.toString();
             encode(os, idStr.getBytes(StandardCharsets.UTF_8));
+        } else if (result instanceof ValueEntry) {
+            encode(os, ((ValueEntry) result).value);
         } else if (result instanceof Exception) {
-            os.write(("-ERR " + ((Exception) result).getMessage() + "\r\n").getBytes());
+            String message = ((Exception) result).getMessage();
+            if (result instanceof Config.WrongTypeException) { // 确保包名正确
+                os.write(("-WRONGTYPE " + message + "\r\n").getBytes());
+            } else {
+                os.write(("-ERR " + message + "\r\n").getBytes());
+            }
         }
     }
+
     public static void encodeRawCommand(OutputStream os, List<byte[]> parts) throws IOException {
         os.write(("*" + parts.size() + "\r\n").getBytes());
         for (byte[] part : parts) {
