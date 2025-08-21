@@ -104,8 +104,12 @@ public class ClientHandler implements Runnable{
                             for (OutputStream replicaOs : replicas) {
                                 // 将原始的命令字节流 (commandParts) 转发给从节点
                                 // 我们需要一个能编码 List<byte[]> 的方法
-                                RespEncoder.encodeRawCommand(replicaOs, commandParts);
-                                replicaOs.flush();
+                                try {
+                                    RespEncoder.encodeRawCommand(replicaOs, commandParts);
+                                    replicaOs.flush();
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
                             }
                         }
                         if(result instanceof FullResyncResponse){
