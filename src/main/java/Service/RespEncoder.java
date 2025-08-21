@@ -16,25 +16,20 @@ import java.util.List;
 public class RespEncoder {
     public static void encode(OutputStream os, Object result) throws IOException {
         if (result == null) {
-            os.write("$-1\r\n".getBytes()); // NIL Bulk String
+            os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8)); // RESP Null Bulk String
         } else if (result instanceof String) {
-            os.write(("+" + result + "\r\n").getBytes()); // Simple String
+            os.write(("+" + result + "\r\n").getBytes(StandardCharsets.UTF_8)); // Simple String
         } else if (result instanceof byte[]) {
             byte[] arr = (byte[]) result;
-            os.write(('$' + String.valueOf(arr.length) + "\r\n").getBytes());
+            os.write(('$' + String.valueOf(arr.length) + "\r\n").getBytes(StandardCharsets.UTF_8));
             os.write(arr);
-            // **关键修复**: 添加缺失的 CRLF
-            os.write("\r\n".getBytes());
+            os.write("\r\n".getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof Long || result instanceof Integer) {
-            os.write((":" + result + "\r\n").getBytes()); // Integer
+            os.write((":" + result + "\r\n").getBytes(StandardCharsets.UTF_8)); // Integer
         } else if (result instanceof List) {
             List<?> list = (List<?>) result;
-            // Write the array header, e.g., *2\r\n
             os.write(("*"+ list.size() + "\r\n").getBytes(StandardCharsets.UTF_8));
-
-            // Recursively encode each item in the list
             for (Object item : list) {
-                // This recursive call is powerful. It allows you to handle nested arrays in the future.
                 encode(os, item);
             }
         } else if (result instanceof StreamEntryID) {
@@ -44,11 +39,15 @@ public class RespEncoder {
             encode(os, ((ValueEntry) result).value);
         } else if (result instanceof Exception) {
             String message = ((Exception) result).getMessage();
-            if (result instanceof WrongTypeException) { // 确保包名正确
-                os.write(("-WRONGTYPE " + message + "\r\n").getBytes());
+            if (result instanceof WrongTypeException) {
+                os.write(("-WRONGTYPE " + message + "\r\n").getBytes(StandardCharsets.UTF_8));
             } else {
-                os.write(("-ERR " + message + "\r\n").getBytes());
+                os.write(("-ERR " + message + "\r\n").getBytes(StandardCharsets.UTF_8));
             }
+        } else {
+            // **关键修复**: 添加一个默认分支来处理所有未知类型，防止静默失败。
+            String errorMsg = "Unsupported response type: " + result.getClass().getName();
+            os.write(("-ERR " + errorMsg + "\r\n").getBytes(StandardCharsets.UTF_8));
         }
     }
 }

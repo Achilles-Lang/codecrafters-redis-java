@@ -1,13 +1,11 @@
 package Commands.Impl;
 
 import Commands.Command;
-import Config.WrongTypeException;
 import Storage.DataStore;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -24,25 +22,39 @@ public class BlpopCommand implements Command {
         }
 
         try {
-            double timeout = Double.parseDouble(new String(args.get(args.size() - 1), StandardCharsets.UTF_8));
+            // 使用 long 来解析超时时间更安全
+            long timeout = Long.parseLong(new String(args.get(args.size() - 1), StandardCharsets.UTF_8));
             List<byte[]> keys = args.subList(0, args.size() - 1);
-            String keysStr = new String(keys.get(0), StandardCharsets.UTF_8); // 简化日志
+            String keysStr = new String(keys.get(0), StandardCharsets.UTF_8);
 
             System.out.println("[BlpopCommand][Thread-" + threadId + "] Calling DataStore.blpop for key: " + keysStr);
+            // 假设 DataStore.blpop 返回 Object[] { byte[] key, byte[] value }
             Object[] result = DataStore.getInstance().blpop(keys, timeout);
             System.out.println("[BlpopCommand][Thread-" + threadId + "] DataStore.blpop returned.");
 
             if (result == null) {
                 System.out.println("[BlpopCommand][Thread-" + threadId + "] Result is null (timeout). Returning null.");
-                return null;
+                return null; // 将被 RespEncoder 编码为 RESP Null
             } else {
                 System.out.println("[BlpopCommand][Thread-" + threadId + "] Result is not null. Formatting response.");
-                return Arrays.asList(result);
+                // **关键修复**: 手动构建一个 List<byte[]> 来确保响应格式的正确性。
+                // BLPOP 的响应是一个包含两个元素的数组：key 和 value。
+                if (result.length == 2 && result[0] instanceof byte[] && result[1] instanceof byte[]) {
+                    List<byte[]> responseList = new ArrayList<>();
+                    responseList.add((byte[]) result[0]); // 添加 key
+                    responseList.add((byte[]) result[1]); // 添加 value
+                    return responseList;
+                } else {
+                    // 如果 DataStore 返回了意料之外的格式，返回一个错误
+                    return new Exception("Internal error: DataStore returned unexpected format for BLPOP");
+                }
             }
-        } catch (Throwable t) { // **关键**: 捕获所有类型的异常，包括 Error
-            System.out.println("[BlpopCommand][Thread-" + threadId + "] !!! FATAL CRASH CAUGHT !!!");
-            t.printStackTrace(System.out); // **关键**: 这会打印出完整的错误堆栈和行号
-            return new Exception("Fatal error in BLPOP: " + t.getMessage());
+        } catch (NumberFormatException e) {
+            return new Exception("ERR timeout is not an integer or out of range");
+        } catch (Exception e) {
+            System.err.println("[BlpopCommand][Thread-" + threadId + "] An error occurred:");
+            e.printStackTrace(System.err);
+            return new Exception("Fatal error in BLPOP: " + e.getMessage());
         }
     }
 }
