@@ -41,7 +41,7 @@ public class ClientHandler implements Runnable{
 
             while (!socket.isClosed()) {
                 List<byte[]> commandParts=protocol.readCommand();
-                if(commandParts == null){
+                if(commandParts == null || commandParts.isEmpty()){
                     break;
                 }
 
