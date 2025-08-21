@@ -42,7 +42,7 @@ public class ClientHandler implements Runnable{
             Protocol protocol=new Protocol(socket.getInputStream());
 
             while (!socket.isClosed()) {
-                List<byte[]> commandParts=protocol.readCommand();
+                List<byte[]> commandParts= (List<byte[]>) protocol.readCommand();
                 if(commandParts == null || commandParts.isEmpty()){
                     break;
                 }
@@ -101,11 +101,12 @@ public class ClientHandler implements Runnable{
                         }
                         if (command instanceof WriteCommand) {
                             List<OutputStream> replicas = DataStore.getInstance().getReplicas();
+                            List<byte[]> rawCommand=commandParts;
                             for (OutputStream replicaOs : replicas) {
                                 // 将原始的命令字节流 (commandParts) 转发给从节点
                                 // 我们需要一个能编码 List<byte[]> 的方法
                                 try {
-                                    RespEncoder. encode(replicaOs, commandParts);
+                                    writeRespArray(replicaOs, rawCommand);
                                     replicaOs.flush();
                                 } catch (IOException e) {
                                     throw new RuntimeException(e);
@@ -155,6 +156,26 @@ public class ClientHandler implements Runnable{
         // ... 编码数组的逻辑 ...
         } else if (result instanceof Exception) {
             outputStream.write(("-ERR " + ((Exception) result).getMessage() + "\r\n").getBytes()); // Error
+        }
+    }
+    /**
+     * 新增一个辅助方法，用于将命令部分列表编码为 RESP 数组并写入输出流。
+     * @param os 输出流
+     * @param parts 命令的各个部分 (e.g., "SET", "key", "value")
+     * @throws IOException
+     */
+    private void writeRespArray(OutputStream os, List<byte[]> parts) throws IOException {
+        // 写入数组头, e.g., *3\r\n
+        os.write(("*" + parts.size() + "\r\n").getBytes(StandardCharsets.UTF_8));
+
+        // 依次写入每个部分
+        for (byte[] part : parts) {
+            // 写入 Bulk String 头, e.g., $3\r\n
+            os.write(("$" + part.length + "\r\n").getBytes(StandardCharsets.UTF_8));
+            // 写入数据本身
+            os.write(part);
+            // 写入结尾的 CRLF
+            os.write("\r\n".getBytes(StandardCharsets.UTF_8));
         }
     }
 }
