@@ -103,4 +103,12 @@ public class Protocol {
         }
         return null;
     }
+    public String readSimpleString() throws IOException{
+        if (inputStream.read() == '+') {
+            return readLine();
+        }
+        // 可以增加对其他类型的错误处理
+        return null;
+    }
+
 }
