@@ -42,6 +42,38 @@ public class Protocol {
         this.is = new CountingInputStream(is);
     }
 
+    /**
+     * 新增方法：专门用于读取和处理 RDB 文件流。
+     * 这样可以确保所有读取操作都通过同一个 CountingInputStream。
+     */
+    public void readRdbFile() throws IOException {
+        int firstByte = is.read();
+        if (firstByte != '$') {
+            throw new IOException("Expected '$' for RDB file bulk string, but got: " + (char)firstByte);
+        }
+
+        int rdbLength = readInteger();
+        System.out.println("RDB file length: " + rdbLength);
+
+        if (rdbLength > 0) {
+            // 读取并丢弃 RDB 文件的二进制内容
+            long bytesSkipped = 0;
+            while (bytesSkipped < rdbLength) {
+                long skipped = is.skip(rdbLength - bytesSkipped);
+                if (skipped == 0) {
+                    // is.skip() might return 0 if it can't skip, so we read a byte to move forward
+                    if (is.read() == -1) {
+                        throw new IOException("Unexpected end of stream while skipping RDB file.");
+                    }
+                    bytesSkipped++;
+                } else {
+                    bytesSkipped += skipped;
+                }
+            }
+            System.out.println("RDB file received and processed.");
+        }
+    }
+
     public CommandResult readCommandWithCount() throws IOException {
         is.resetCount();
         List<byte[]> commandParts = readCommandInternal();
@@ -106,34 +138,17 @@ public class Protocol {
     }
 
     private int readInteger() throws IOException {
-        String line = readLine();
-        return Integer.parseInt(line);
+        return Integer.parseInt(readLine());
     }
 
-    /**
-     * **最终修复**: 这是最关键的修改。
-     * 这个版本的 readLine 更加健壮，可以正确处理所有情况。
-     */
     private String readLine() throws IOException {
         StringBuilder sb = new StringBuilder();
         int b;
-        while (true) {
-            b = is.read();
-            if (b == -1) {
-                throw new IOException("Unexpected end of stream.");
-            }
-            if (b == '\r') {
-                // 读取下一个字节，它必须是 '\n'
-                int nextByte = is.read();
-                if (nextByte != '\n') {
-                    throw new IOException("Expected LF after CR in line ending.");
-                }
-                // 成功读取到 \r\n，退出循环
-                break;
-            }
-            // 如果不是 \r，就追加到字符串构建器中
+        while ((b = is.read()) != '\r') {
+            if (b == -1) { throw new IOException("Unexpected end of stream."); }
             sb.append((char) b);
         }
+        if (is.read() != '\n') { throw new IOException("Expected LF after CR in line ending."); }
         return sb.toString();
     }
 }

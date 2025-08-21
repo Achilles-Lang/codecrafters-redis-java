@@ -11,10 +11,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/**
- * @author Achilles
- * 作为一个客户端，处理与主节点的连接和通信
- */
 public class MasterConnectionHandler implements Runnable {
     private final String masterHost;
     private final int masterPort;
@@ -33,6 +29,7 @@ public class MasterConnectionHandler implements Runnable {
     public void run() {
         try (Socket masterSocket = new Socket(masterHost, masterPort)) {
             OutputStream os = masterSocket.getOutputStream();
+            // 仍然使用 BufferedInputStream 以提高效率
             InputStream is = new BufferedInputStream(masterSocket.getInputStream());
             Protocol parser = new Protocol(is);
 
@@ -51,26 +48,11 @@ public class MasterConnectionHandler implements Runnable {
 
             System.out.println("Sending PSYNC...");
             sendCommand(os, "PSYNC", "?", "-1");
-            parser.readSimpleString();
+            parser.readSimpleString(); // 读取 +FULLRESYNC...
 
-            // --- 处理 RDB 文件 ---
+            // --- **关键修复**: 将 RDB 文件处理委托给 parser ---
             System.out.println("Waiting for RDB file...");
-            // 读取 '$' 符号
-            is.read();
-            StringBuilder lengthBuilder = new StringBuilder();
-            int nextByte;
-            while ((nextByte = is.read()) != '\r') {
-                lengthBuilder.append((char) nextByte);
-            }
-            is.read(); // 跳过 '\n'
-            int rdbLength = Integer.parseInt(lengthBuilder.toString());
-            System.out.println("RDB file length: " + rdbLength);
-            if (rdbLength > 0) {
-                is.readNBytes(rdbLength);
-                System.out.println("RDB file received and processed.");
-            }
-            // **关键修复**: 移除了之前错误的 is.read() 调用。
-            // RDB 文件数据之后没有 \r\n，直接就是下一个命令。
+            parser.readRdbFile();
 
             System.out.println("Handshake successful. Listening for propagated commands.");
 
