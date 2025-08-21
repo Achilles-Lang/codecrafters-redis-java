@@ -86,12 +86,16 @@ public class Protocol {
         if (type != '$') { throw new IOException("Expected Bulk String, but got type: " + type); }
 
         int stringLength = readInteger();
-        if (stringLength == -1) { return null; } // RESP Null Bulk String
+        if (stringLength == -1) { return null; }
 
         byte[] data = new byte[stringLength];
         int totalBytesRead = 0;
-        // 必须在循环中读取，因为一次 is.read() 不保证能读完所有数据
+
         while (totalBytesRead < stringLength) {
+            // --- 这是我们植入的“示踪剂” ---
+            System.out.println("[DIAGNOSTIC] >> In robust readBulkString while-loop <<");
+            // --------------------------------
+
             int bytesRead = is.read(data, totalBytesRead, stringLength - totalBytesRead);
             if (bytesRead == -1) {
                 throw new IOException("Unexpected end of stream while reading bulk string data.");
@@ -99,7 +103,6 @@ public class Protocol {
             totalBytesRead += bytesRead;
         }
 
-        // 消费结尾的 CRLF (\r\n)
         if (is.read() != '\r' || is.read() != '\n') {
             throw new IOException("Expected CRLF after bulk string data.");
         }
