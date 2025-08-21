@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Service.FullResyncResponse;
 import Storage.DataStore;
 import Storage.ReplicationInfo;
 
@@ -16,7 +17,6 @@ public class PsyncCommand implements Command {
         String replid=info.getMasterReplid();
         long offset=info.getMasterReplOffset();
 
-        String response="FULLRESYNC " + replid + " " + offset;
-        return response;
+        return new FullResyncResponse(info.getMasterReplid(), info.getMasterReplOffset());
     }
 }

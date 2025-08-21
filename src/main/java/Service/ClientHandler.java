@@ -2,6 +2,7 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
+import util.RdbUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -92,7 +93,20 @@ public class ClientHandler implements Runnable{
                         Object result=(command==null)
                                 ? new Exception("unknown command '" + commandName + "'")
                                 :command.execute(args);
-                        RespEncoder.encode(outputStream, result);
+
+                        if(result instanceof FullResyncResponse){
+                            FullResyncResponse resync=(FullResyncResponse) result;
+
+                            String fullResyncLine="+FULLRESYNC " + resync.getMasterReplid() + " " + resync.getMasterReplOffset()+ "\r\n";
+                            outputStream.write(fullResyncLine.getBytes(StandardCharsets.UTF_8));
+
+                            byte[] rdbFile= RdbUtil.getEmptyRdbFile();
+                            outputStream.write(("$" + rdbFile.length + "\r\n").getBytes(StandardCharsets.UTF_8));
+                            outputStream.write(rdbFile);
+                        }else {
+                            RespEncoder.encode(outputStream, result);
+
+                        }
                     }
                 }
                 outputStream.flush();
@@ -126,3 +140,4 @@ public class ClientHandler implements Runnable{
         }
     }
 }
+
