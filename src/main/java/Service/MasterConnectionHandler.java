@@ -20,7 +20,8 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-    private long bytesProcessed=0;
+    // 新增：用于追踪处理的字节数，作为复制偏移量
+    private long bytesProcessed = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -33,11 +34,7 @@ public class MasterConnectionHandler implements Runnable {
     public void run() {
         try (Socket masterSocket = new Socket(masterHost, masterPort)) {
             OutputStream os = masterSocket.getOutputStream();
-            // 使用 BufferedInputStream 提高读取效率
             InputStream is = new BufferedInputStream(masterSocket.getInputStream());
-
-            // 假设你有一个 Protocol 类来处理 RESP 解析
-            // 如果没有，你需要实现相应的解析逻辑
             Protocol parser = new Protocol(is);
 
             // --- 阶段 1: PING ---
@@ -45,7 +42,6 @@ public class MasterConnectionHandler implements Runnable {
             sendCommand(os, "PING");
             String pingResponse = parser.readSimpleString();
             System.out.println("Received from master: " + pingResponse);
-
 
             // --- 阶段 2: REPLCONF ---
             System.out.println("Sending REPLCONF listening-port...");
@@ -58,87 +54,74 @@ public class MasterConnectionHandler implements Runnable {
             String replconfCapaResponse = parser.readSimpleString();
             System.out.println("Received from master: " + replconfCapaResponse);
 
-
             // --- 阶段 3: PSYNC ---
             System.out.println("Sending PSYNC...");
             sendCommand(os, "PSYNC", "?", "-1");
             String psyncResponse = parser.readSimpleString();
             System.out.println("Received from master: " + psyncResponse);
 
-
-            // --- **关键修复**: 处理 RDB 文件 ---
-            // +FULLRESYNC 响应之后，Master 会立即发送 RDB 文件
-            // RDB 文件以 RESP Bulk String 的格式发送: $<length>\r\n<binary-data>
+            // --- 处理 RDB 文件 ---
             System.out.println("Waiting for RDB file...");
-            // 读取第一个字节，应该是 '$'
             int firstByte = is.read();
             if (firstByte != '$') {
                 throw new IOException("Expected '$' for RDB file bulk string, but got: " + (char)firstByte);
             }
-
-            // 读取 RDB 文件的长度
             StringBuilder lengthBuilder = new StringBuilder();
             int nextByte;
             while ((nextByte = is.read()) != '\r') {
                 lengthBuilder.append((char) nextByte);
             }
-            // 跳过 '\n'
-            is.read();
-
+            is.read(); // 跳过 '\n'
             int rdbLength = Integer.parseInt(lengthBuilder.toString());
             System.out.println("RDB file length: " + rdbLength);
-
-            // 读取并丢弃 RDB 文件的二进制内容
             if (rdbLength > 0) {
-                // 使用 readNBytes 确保读取了所有字节
-                byte[] rdbContent = new byte[rdbLength];
-                is.read(rdbContent, 0, rdbLength);
+                is.readNBytes(rdbLength);
                 System.out.println("RDB file received and processed.");
             }
-
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             // --- 命令处理循环 ---
             while (!masterSocket.isClosed()) {
-                // 现在输入流中只剩下 Master 传播过来的命令
                 CommandResult result = parser.readCommandWithCount();
-                if (result == null||result.parts==null) {
-                    // 连接关闭
+                if (result == null || result.parts == null || result.parts.isEmpty()) {
                     break;
                 }
 
-                bytesProcessed+=result.bytesRead;
                 List<byte[]> commandParts = result.parts;
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
 
-                if("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size()>1
-                    && "GETACK".equalsIgnoreCase(new String(commandParts.get(1),StandardCharsets.UTF_8))){
+                // --- **关键逻辑修复** ---
+                // 1. 先检查是否是 GETACK 命令
+                if ("REPLCONF".equals(commandName) && commandParts.size() > 1
+                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
+
                     System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
+                    // 2. 如果是，立即用 *当前* 的偏移量回复
                     sendCommand(os, "REPLCONF", "ACK", String.valueOf(bytesProcessed));
+                    // 3. GETACK 命令本身不增加偏移量，也不需要执行，直接继续下一次循环
                     continue;
                 }
 
-                System.out.println("Received propagated command: " + commandName);
+                // 4. 如果不是 GETACK，才将读取的字节数累加到偏移量中
+                bytesProcessed += result.bytesRead;
 
+                // 5. 执行常规命令 (如 SET)
+                System.out.println("Received propagated command: " + commandName);
                 List<byte[]> args = commandParts.subList(1, commandParts.size());
                 Command command = this.commandHandler.getCommand(commandName);
 
                 if (command != null) {
-                    // 在从节点执行命令，但不需要发送响应回 Master
-                    // 所以第二个参数传入 null
                     command.execute(args, null);
                 } else {
                     System.out.println("Unknown propagated command: " + commandName);
                 }
             }
-
         } catch (IOException e) {
             System.out.println("IOException in MasterConnectionHandler: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    // 辅助方法，用于将命令编码为RESP Array 格式并发送
     private void sendCommand(OutputStream os, String... args) throws IOException {
         StringBuilder commandBuilder = new StringBuilder();
         commandBuilder.append("*").append(args.length).append("\r\n");
