@@ -2,6 +2,7 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
+import Storage.CommandResult;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -20,6 +21,7 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
+    private long bytesProcessed=0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -100,13 +102,23 @@ public class MasterConnectionHandler implements Runnable {
             // --- 命令处理循环 ---
             while (!masterSocket.isClosed()) {
                 // 现在输入流中只剩下 Master 传播过来的命令
-                List<byte[]> commandParts = parser.readCommand();
-                if (commandParts == null) {
+                CommandResult result = parser.readCommand();
+                if (result == null||result.parts==null) {
                     // 连接关闭
                     break;
                 }
 
+                bytesProcessed+=result.bytesRead;
+                List<byte[]> commandParts = result.parts;
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
+
+                if("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size()>1
+                    && "GETACK".equalsIgnoreCase(new String(commandParts.get(1),StandardCharsets.UTF_8))){
+                    System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
+                    sendCommand(os, "REPLCONF", "ACK", String.valueOf(bytesProcessed));
+                    continue;
+                }
+
                 System.out.println("Received propagated command: " + commandName);
 
                 List<byte[]> args = commandParts.subList(1, commandParts.size());
