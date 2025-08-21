@@ -2,6 +2,8 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
+import Commands.WriteCommand;
+import Storage.DataStore;
 import util.RdbUtil;
 
 import java.io.IOException;
@@ -58,7 +60,7 @@ public class ClientHandler implements Runnable{
                             Command commandToExecute = commandHandler.getCommand(queuedCommandName);
 
                             if(commandToExecute!=null){
-                                results.add(commandToExecute.execute(queuedArgs));
+                                results.add(commandToExecute.execute(queuedArgs,this));
 
                             }else{
                                 results.add(new Exception("unknown command '" + queuedCommandName + "'"));
@@ -92,7 +94,19 @@ public class ClientHandler implements Runnable{
                         Command command=commandHandler.getCommand(commandName);
                         Object result=(command==null)
                                 ? new Exception("unknown command '" + commandName + "'")
-                                :command.execute(args);
+                                :command.execute(args,this);
+
+                        if(command instanceof WriteCommand){
+                            List<OutputStream> replicas= DataStore.getInstance().getReplicas();
+                            for(OutputStream replica:replicas){
+                                try {
+                                    RespEncoder.encode(replica,commandParts);
+                                    replica.flush();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
 
                         if(result instanceof FullResyncResponse){
                             FullResyncResponse resync=(FullResyncResponse) result;

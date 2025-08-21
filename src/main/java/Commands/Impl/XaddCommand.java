@@ -1,8 +1,11 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.WriteCommand;
+import Service.ClientHandler;
 import Storage.DataStore;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -11,9 +14,9 @@ import java.util.Map;
 /**
  * @author Achilles
  */
-public class XaddCommand implements Command {
+public class XaddCommand implements WriteCommand {
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, ClientHandler clientHandler) {
         System.out.println("[DEBUG] XaddCommand: Starting execution.");
         try {
             if (args.size() < 4 || args.size() % 2 != 0) {

@@ -2,8 +2,10 @@ package Commands.Impl;
 
 import Commands.Command;
 import Config.WrongTypeException;
+import Service.ClientHandler;
 import Storage.DataStore;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,7 +16,7 @@ import java.util.List;
  */
 public class BlpopCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, ClientHandler clientHandler) {
         long threadId = Thread.currentThread().getId();
         System.out.println("[BlpopCommand][Thread-" + threadId + "] ==> START");
 

@@ -1,18 +1,21 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.WriteCommand;
+import Service.ClientHandler;
 import Storage.DataStore;
 import Storage.ValueEntry;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
  * @author Achilles
  */
-public class SetCommand implements Command {
+public class SetCommand implements WriteCommand {
     @Override
-    public Object execute(List<byte[]> args) {
+    public Object execute(List<byte[]> args, ClientHandler clientHandler) {
         if (args.size() < 2) {
             return new Exception("wrong number of arguments for 'set' command");
         }
