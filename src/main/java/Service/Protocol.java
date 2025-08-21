@@ -78,9 +78,6 @@ public class Protocol {
         return result;
     }
 
-    /**
-     * **关键修复**: 重写此方法以确保完整读取数据。
-     */
     private byte[] readBulkString() throws IOException {
         int firstByte = is.read();
         if (firstByte == -1) { return null; }
