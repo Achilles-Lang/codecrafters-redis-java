@@ -2,7 +2,6 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
-import Storage.CommandResult;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -102,7 +101,7 @@ public class MasterConnectionHandler implements Runnable {
             // --- 命令处理循环 ---
             while (!masterSocket.isClosed()) {
                 // 现在输入流中只剩下 Master 传播过来的命令
-                CommandResult result = parser.readCommand();
+                CommandResult result = parser.readCommandWithCount();
                 if (result == null||result.parts==null) {
                     // 连接关闭
                     break;
