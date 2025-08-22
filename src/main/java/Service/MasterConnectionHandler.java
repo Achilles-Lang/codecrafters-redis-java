@@ -2,6 +2,7 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
+import Storage.DataStore;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -87,6 +88,15 @@ public class MasterConnectionHandler implements Runnable {
                     } else {
                         System.out.println("Unknown propagated command: " + commandName);
                     }
+                }
+
+                if ("REPLCONF".equals(commandName) && commandParts.size() > 1
+                        && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
+
+                    long offset = Long.parseLong(new String(commandParts.get(2), StandardCharsets.UTF_8));
+                    DataStore.getInstance().processAck(offset);
+                    // ACK 命令不需要增加偏移量，也不需要执行，直接继续
+                    continue;
                 }
             }
         } catch (IOException e) {

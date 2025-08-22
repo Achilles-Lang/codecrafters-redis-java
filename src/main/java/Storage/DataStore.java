@@ -8,6 +8,8 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * @author Achilles
@@ -24,6 +26,26 @@ public class DataStore {
 
     private long masterWriteOffset=0L;
 
+    private final Queue<AckCallback> ackCallbacks = new ConcurrentLinkedQueue<>();
+
+    @FunctionalInterface
+    public interface AckCallback {
+        void onAckReceived(long offset);
+    }
+
+    public void registerAckCallback(AckCallback callback){
+        ackCallbacks.add(callback);
+    }
+
+    public void removeAckCallback(AckCallback callback){
+        ackCallbacks.remove(callback);
+    }
+
+    public void processAck(long offset){
+        for(AckCallback callback:ackCallbacks){
+            callback.onAckReceived(offset);
+        }
+    }
 
     private DataStore() {
     }
