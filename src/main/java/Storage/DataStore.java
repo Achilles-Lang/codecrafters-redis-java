@@ -2,6 +2,7 @@ package Storage;
 
 import Config.WrongTypeException;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -568,13 +569,17 @@ public class DataStore {
     }
 
     public synchronized void propagateCommand(List<byte[]> commandParts) {
+        // 1. 计算命令的精确字节大小并更新偏移量
+        long commandSize = calculateAndGetCommandSize(commandParts);
+        this.masterWriteOffset += commandSize;
+
+        // 2. 将命令编码成单个字节数组
+        byte[] respCommand = encodeCommandFromParts(commandParts);
+
+        // 3. 将编码后的命令广播给所有副本
         if (replicas.isEmpty()) {
             return;
         }
-
-        // 将 List<byte[]> 编码成单个 byte[]
-        byte[] respCommand = encodeCommandFromParts(commandParts);
-
         Iterator<OutputStream> iterator = replicas.iterator();
         while (iterator.hasNext()) {
             OutputStream replicaOs = iterator.next();
@@ -590,13 +595,31 @@ public class DataStore {
 
     // 辅助方法，用于将 List<byte[]> 编码
     private byte[] encodeCommandFromParts(List<byte[]> parts) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("*").append(parts.size()).append("\r\n");
-        for (byte[] part : parts) {
-            sb.append("$").append(part.length).append("\r\n");
-            // 注意：这里我们不能直接追加 byte[]，需要先转成 String
-            sb.append(new String(part, StandardCharsets.UTF_8)).append("\r\n");
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            baos.write(("*" + parts.size() + "\r\n").getBytes(StandardCharsets.UTF_8));
+            for (byte[] part : parts) {
+                baos.write(("$" + part.length + "\r\n").getBytes(StandardCharsets.UTF_8));
+                baos.write(part);
+                baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            }
+            return baos.toByteArray();
+        } catch (IOException e) {
+            // 这在内存操作中几乎不可能发生
+            throw new RuntimeException(e);
         }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * **最终修复**: 辅助方法，用于计算命令的精确 RESP 字节大小。
+     */
+    private long calculateAndGetCommandSize(List<byte[]> commandParts) {
+        long totalSize = 0;
+        totalSize += ("*" + commandParts.size() + "\r\n").getBytes(StandardCharsets.UTF_8).length;
+        for (byte[] part : commandParts) {
+            totalSize += ("$" + part.length + "\r\n").getBytes(StandardCharsets.UTF_8).length;
+            totalSize += part.length;
+            totalSize += "\r\n".getBytes(StandardCharsets.UTF_8).length;
+        }
+        return totalSize;
     }
 }
