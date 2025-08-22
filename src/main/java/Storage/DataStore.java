@@ -28,6 +28,10 @@ public class DataStore {
 
     private final Queue<AckCallback> ackCallbacks = new ConcurrentLinkedQueue<>();
 
+    public synchronized int getReplicaCount() {
+        return this.replicas.size();
+    }
+
     @FunctionalInterface
     public interface AckCallback {
         void onAckReceived(long offset);

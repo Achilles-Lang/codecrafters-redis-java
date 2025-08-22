@@ -23,7 +23,7 @@ public class WaitCommand implements Command {
             long timeout = Long.parseLong(new String(args.get(1), StandardCharsets.UTF_8));
 
             DataStore dataStore = DataStore.getInstance();
-            int connectedReplicas = dataStore.getReplicas().size();
+            int connectedReplicas = dataStore.getReplicaCount();
 
             // 如果没有副本或不要求等待，立即返回0
             if (connectedReplicas == 0 || numReplicasToWaitFor == 0) {
