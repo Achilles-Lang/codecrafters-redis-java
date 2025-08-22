@@ -10,6 +10,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author Achilles
@@ -22,7 +23,7 @@ public class DataStore {
 
     private final ReplicationInfo replicationInfo =new ReplicationInfo();
 
-    private final List<OutputStream> replicas=new ArrayList<>() ;
+    private final List<OutputStream> replicas=new CopyOnWriteArrayList<>() ;
 
     private long masterWriteOffset=0L;
 

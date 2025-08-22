@@ -43,21 +43,22 @@ public class ClientHandler implements Runnable{
             Protocol protocol=new Protocol(socket.getInputStream());
 
             while (!socket.isClosed()) {
-                List<byte[]> commandParts= (List<byte[]>) protocol.readCommand();
+                List<byte[]> commandParts= protocol.readCommand();
                 if(commandParts == null || commandParts.isEmpty()){
                     break;
                 }
                 String commandName=new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
-                if ("REPLCONF".equals(commandName) && commandParts.size() > 2
+                if ("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size() > 2
                         && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
 
                     long offset = Long.parseLong(new String(commandParts.get(2), StandardCharsets.UTF_8));
                     DataStore.getInstance().processAck(offset);
-
-                    // ACK 是一个内部响应，不需要进一步处理，直接继续下一次循环
-                    continue;
+                    continue; // ACK processed, continue to next command
                 }
+
+                // **KEY FIX 2**: Convert to lowercase *after* the ACK check
+                String lowerCaseCommandName = commandName.toLowerCase();
 
                 if(inTransaction){
                     //如果在事务中
@@ -91,16 +92,16 @@ public class ClientHandler implements Runnable{
                         RespEncoder.encode(outputStream, "QUEUED");
                     }
                 }else {
-                    if("multi".equals(commandName)){
+                    if("multi".equals(lowerCaseCommandName)){
                         inTransaction=true;
                         transactionQueue.clear();
                         RespEncoder.encode(outputStream, "OK");
-                    } else if ("exec".equals(commandName)||"discard".equals(commandName)) {
-                        RespEncoder.encode(outputStream, new Exception(commandName.toUpperCase() + " without MULTI"));
+                    } else if ("exec".equals(lowerCaseCommandName)||"discard".equals(lowerCaseCommandName)) {
+                        RespEncoder.encode(outputStream, new Exception(lowerCaseCommandName.toUpperCase() + " without MULTI"));
 
                     } else {
                         List<byte[]> args=commandParts.subList(1, commandParts.size());
-                        Command command=commandHandler.getCommand(commandName);
+                        Command command=commandHandler.getCommand(lowerCaseCommandName);
 
                         if(command==null){
                             RespEncoder.encode(outputStream, new Exception("unknown command '" + commandName + "'"));
