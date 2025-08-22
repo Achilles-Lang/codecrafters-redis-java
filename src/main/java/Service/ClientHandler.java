@@ -49,6 +49,16 @@ public class ClientHandler implements Runnable{
                 }
                 String commandName=new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
+                if ("REPLCONF".equals(commandName) && commandParts.size() > 2
+                        && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
+
+                    long offset = Long.parseLong(new String(commandParts.get(2), StandardCharsets.UTF_8));
+                    DataStore.getInstance().processAck(offset);
+
+                    // ACK 是一个内部响应，不需要进一步处理，直接继续下一次循环
+                    continue;
+                }
+
                 if(inTransaction){
                     //如果在事务中
                     if("exec".equals(commandName)){
