@@ -34,6 +34,7 @@ public class CommandHandler {
         commandMap.put("info",new InfoCommand());
         commandMap.put("replconf",new ReplconfCommand());
         commandMap.put("psync",new PsyncCommand());
+        commandMap.put("wait",new WaitCommand());
     }
     public Command getCommand(String commandName)
     {
