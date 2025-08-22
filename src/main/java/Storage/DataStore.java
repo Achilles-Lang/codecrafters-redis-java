@@ -2,6 +2,7 @@ package Storage;
 
 import Config.WrongTypeException;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -19,6 +20,9 @@ public class DataStore {
     private final ReplicationInfo replicationInfo =new ReplicationInfo();
 
     private final List<OutputStream> replicas=new ArrayList<>() ;
+
+    private long masterWriteOffset=0L;
+
 
     private DataStore() {
     }
@@ -39,6 +43,14 @@ public class DataStore {
         this.replicationInfo.setRole("slave");
         this.replicationInfo.setMasterHost(masterHost);
         this.replicationInfo.setMasterPort(masterPort);
+    }
+
+    public synchronized void  addToMasterOffset(long offset){
+        this.masterWriteOffset+=offset;
+    }
+
+    public synchronized  long getMasterOffset(){
+        return this.masterWriteOffset;
     }
 
     // --- 字符串操作 ---
@@ -508,5 +520,50 @@ public class DataStore {
     // **新增**: 获取所有从节点的输出流的副本
     public synchronized List<OutputStream> getReplicas() {
         return new ArrayList<>(replicas); // 返回一个副本以避免并发修改问题
+    }
+
+    /**
+     * 向所有连接的副本广播一个命令。
+     * 这个方法是线程安全的。
+     * @param commandParts 要发送的命令的各个部分 (e.g., "REPLCONF", "GETACK", "*")
+     */
+    public synchronized void broadcastToReplicas(String... commandParts) {
+        if (replicas.isEmpty()) {
+            return;
+        }
+
+        // 1. 将命令编码成 RESP 格式的字节数组
+        byte[] respCommand = encodeCommand(commandParts);
+
+        // 2. 遍历所有副本的输出流并发送命令
+        // 使用迭代器可以安全地在遍历时移除断开连接的副本
+        Iterator<OutputStream> iterator = replicas.iterator();
+        while (iterator.hasNext()) {
+            OutputStream replicaOs = iterator.next();
+            try {
+                replicaOs.write(respCommand);
+                replicaOs.flush();
+            } catch (IOException e) {
+                // 如果写入失败，说明这个副本的连接已经断开
+                System.out.println("Replica connection lost. Removing from list.");
+                // 从列表中移除这个无效的连接
+                iterator.remove();
+            }
+        }
+    }
+
+    /**
+     * 辅助方法，将字符串数组编码成一个完整的 RESP 命令字节数组。
+     * @param parts 命令的各个部分
+     * @return 编码后的字节数组
+     */
+    private byte[] encodeCommand(String... parts) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("*").append(parts.length).append("\r\n");
+        for (String part : parts) {
+            sb.append("$").append(part.getBytes(StandardCharsets.UTF_8).length).append("\r\n");
+            sb.append(part).append("\r\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 }

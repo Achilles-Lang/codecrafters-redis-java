@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author Achilles
@@ -111,6 +112,9 @@ public class ClientHandler implements Runnable{
                                     throw new RuntimeException(e);
                                 }
                             }
+
+                            long commandSize=calculateCommandSize(rawCommand);
+                            DataStore.getInstance().addToMasterOffset(commandSize);
                         }
                         if(result instanceof FullResyncResponse){
                             FullResyncResponse resync=(FullResyncResponse) result;
@@ -137,6 +141,29 @@ public class ClientHandler implements Runnable{
         }
 
     }
+        //计算这个命令的RESP字节长度
+    private long calculateCommandSize(List<byte[]> commandParts) {
+        if (commandParts == null || commandParts.isEmpty()) {
+            return 0;
+        }
+
+        long totalSize = 0;
+        // RESP数组头: *<number-of-elements>\r\n
+        totalSize += 1 + String.valueOf(commandParts.size()).length() + 2;
+
+        for (byte[] part : commandParts) {
+            if (part != null) {
+                // RESP批量字符串: $<length>\r\n<data>\r\n
+                totalSize += 1 + String.valueOf(part.length).length() + 2 + part.length + 2;
+            } else {
+                // RESP批量字符串null: $-1\r\n
+                totalSize += 4;
+            }
+        }
+
+        return totalSize;
+    }
+
 
     //已迁移到 RespEncoder
     private void sendResponse(OutputStream outputStream, Object result) throws IOException {
