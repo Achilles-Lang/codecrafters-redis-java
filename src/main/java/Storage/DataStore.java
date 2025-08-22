@@ -566,4 +566,37 @@ public class DataStore {
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
+
+    public synchronized void propagateCommand(List<byte[]> commandParts) {
+        if (replicas.isEmpty()) {
+            return;
+        }
+
+        // 将 List<byte[]> 编码成单个 byte[]
+        byte[] respCommand = encodeCommandFromParts(commandParts);
+
+        Iterator<OutputStream> iterator = replicas.iterator();
+        while (iterator.hasNext()) {
+            OutputStream replicaOs = iterator.next();
+            try {
+                replicaOs.write(respCommand);
+                replicaOs.flush();
+            } catch (IOException e) {
+                System.out.println("Replica connection lost. Removing from list.");
+                iterator.remove();
+            }
+        }
+    }
+
+    // 辅助方法，用于将 List<byte[]> 编码
+    private byte[] encodeCommandFromParts(List<byte[]> parts) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("*").append(parts.size()).append("\r\n");
+        for (byte[] part : parts) {
+            sb.append("$").append(part.length).append("\r\n");
+            // 注意：这里我们不能直接追加 byte[]，需要先转成 String
+            sb.append(new String(part, StandardCharsets.UTF_8)).append("\r\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
 }

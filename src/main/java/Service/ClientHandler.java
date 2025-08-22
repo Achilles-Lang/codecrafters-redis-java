@@ -90,44 +90,26 @@ public class ClientHandler implements Runnable{
 
                     } else {
                         List<byte[]> args=commandParts.subList(1, commandParts.size());
-
                         Command command=commandHandler.getCommand(commandName);
-                        Object result;
+
                         if(command==null){
-                            result=new Exception("unknown command '" + commandName + "'");
+                            RespEncoder.encode(outputStream, new Exception("unknown command '" + commandName + "'"));
                         }else{
-                            result = command.execute(args, outputStream);
-
-                        }
-                        if (command instanceof WriteCommand) {
-                            List<OutputStream> replicas = DataStore.getInstance().getReplicas();
-                            List<byte[]> rawCommand=commandParts;
-                            for (OutputStream replicaOs : replicas) {
-                                // 将原始的命令字节流 (commandParts) 转发给从节点
-                                // 我们需要一个能编码 List<byte[]> 的方法
-                                try {
-                                    writeRespArray(replicaOs, rawCommand);
-                                    replicaOs.flush();
-                                } catch (IOException e) {
-                                    throw new RuntimeException(e);
-                                }
+                            if(command instanceof WriteCommand){
+                                DataStore.getInstance().propagateCommand(commandParts);
                             }
+                            Object result=command.execute(args, outputStream);
 
-                            long commandSize=calculateCommandSize(rawCommand);
-                            DataStore.getInstance().addToMasterOffset(commandSize);
-                        }
-                        if(result instanceof FullResyncResponse){
-                            FullResyncResponse resync=(FullResyncResponse) result;
-
-                            String fullResyncLine="+FULLRESYNC " + resync.getMasterReplid() + " " + resync.getMasterReplOffset()+ "\r\n";
-                            outputStream.write(fullResyncLine.getBytes(StandardCharsets.UTF_8));
-
-                            byte[] rdbFile= RdbUtil.getEmptyRdbFile();
-                            outputStream.write(("$" + rdbFile.length + "\r\n").getBytes(StandardCharsets.UTF_8));
-                            outputStream.write(rdbFile);
-                        }else {
-                            RespEncoder.encode(outputStream, result);
-
+                            if(result instanceof FullResyncResponse){
+                                FullResyncResponse resync=(FullResyncResponse)result;
+                                String fullResyncLine="+FULLRESYNC "+resync.getMasterReplid()+" "+resync.getMasterReplOffset()+"\r\n";
+                                outputStream.write(fullResyncLine.getBytes(StandardCharsets.UTF_8));
+                                byte[] rdbFile=RdbUtil.getEmptyRdbFile();
+                                outputStream.write(("$" + rdbFile.length + "\r\n").getBytes(StandardCharsets.UTF_8));
+                                outputStream.write(rdbFile);
+                            } else {
+                                RespEncoder.encode(outputStream, result);
+                            }
                         }
                     }
                 }
