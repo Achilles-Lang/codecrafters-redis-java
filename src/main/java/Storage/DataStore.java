@@ -665,4 +665,8 @@ public class DataStore {
         }
         return totalSize;
     }
+
+    public synchronized List<String> getAllKeys(){
+        return new ArrayList<>(map.keySet());
+    }
 }
