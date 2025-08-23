@@ -29,6 +29,22 @@ public class DataStore {
 
     private final Queue<AckCallback> ackCallbacks = new ConcurrentLinkedQueue<>();
 
+    private String rdbDir;
+    private String rdbFileName;
+
+    public void setRdbConfig(String dir,String fileName){
+        this.rdbDir=dir;
+        this.rdbFileName=fileName;
+    }
+
+    public String getRdbDir(){
+        return this.rdbDir;
+    }
+
+    public String getRdbFileName(){
+        return this.rdbFileName;
+    }
+
     public synchronized int getReplicaCount() {
         return this.replicas.size();
     }

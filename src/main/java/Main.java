@@ -16,6 +16,8 @@ public class Main {
       int port = 6379;
       String masterHost = null;
       int masterPort = -1;
+      String dir=null;
+      String dbFileName=null;
 
       //2.检查命令行参数
       if (args.length>1){
@@ -34,7 +36,21 @@ public class Main {
                       }
                       i++;
                   }
+              } else if ("--dir".equalsIgnoreCase(args[i])) {
+                  if(i+1<args.length){
+                      dir=args[i+1];
+                      i++;
+                  }
+              } else if ("--dbfilename".equalsIgnoreCase(args[i])) {
+                  if(i+1<args.length){
+                      dbFileName=args[i+1];
+                      i++;
+                  }
               }
+          }
+          DataStore dataStore=DataStore.getInstance();
+          if(dir!=null&&dbFileName!=null){
+              dataStore.setRdbConfig(dir, dbFileName);
           }
       }
       CommandHandler commandHandler=new CommandHandler();
