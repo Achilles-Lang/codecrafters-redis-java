@@ -15,6 +15,9 @@ import java.util.List;
 public class ConfigCommand implements Command {
     @Override
     public Object execute(List<byte[]> args, OutputStream os) {
+        System.out.println("[DIAGNOSTIC] >>> ConfigCommand.execute() was called! <<<");
+
+
         if(args.size() < 2){
             return new Exception("wrong number of arguments for 'config' command");
         }
