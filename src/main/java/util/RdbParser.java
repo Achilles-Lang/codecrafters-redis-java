@@ -9,8 +9,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static java.nio.file.Files.readString;
-
 /**
  * @author Achilles
  * 负责解析 RDB 文件并加载数据到 DataStore
