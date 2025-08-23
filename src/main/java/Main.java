@@ -3,10 +3,14 @@ import Service.ClientHandler;
 import Service.MasterConnectionHandler;
 import Storage.DataStore;
 import Storage.ReplicationInfo;
+import util.RdbParser;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class Main {
   public static void main(String[] args){
@@ -51,6 +55,22 @@ public class Main {
           DataStore dataStore=DataStore.getInstance();
           if(dir!=null&&dbFileName!=null){
               dataStore.setRdbConfig(dir, dbFileName);
+          }
+
+          if(dataStore.getRdbDir()!=null&&dataStore.getRdbFileName()!=null){
+              Path rdbFilePath= Paths.get(dataStore.getRdbDir(),dataStore.getRdbFileName());
+              File rdbFile=rdbFilePath.toFile();
+
+              if(rdbFile.exists()){
+                  System.out.println("RDB file found. Loading data...");
+                try {
+                    RdbParser parser = new RdbParser(rdbFile,dataStore);
+                    parser.parse();
+                    System.out.println("Data loaded from RDB file.");
+                } catch (IOException e){
+                    System.err.println("Error loading data from RDB file: " + e.getMessage());
+                }
+              }
           }
       }
       CommandHandler commandHandler=new CommandHandler();
