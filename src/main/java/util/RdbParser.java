@@ -58,7 +58,7 @@ public class RdbParser {
                         return; // 成功解析
                     default:
                         // 对于此阶段，我们可以忽略其他操作码
-                        // System.out.println("Unknown opcode: " + opCode);
+                        System.out.println("Unknown opcode: " + opCode);
                         break;
                 }
             }
