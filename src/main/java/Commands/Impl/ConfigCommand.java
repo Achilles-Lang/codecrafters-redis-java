@@ -38,11 +38,11 @@ public class ConfigCommand implements Command {
 
         String value;
         switch(parameter){
-            case "dbfilename":
-                value = dataStore.getRdbFileName();
-                break;
             case "dir":
                 value = dataStore.getRdbDir();
+                break;
+            case "dbfilename":
+                value = dataStore.getRdbFileName();
                 break;
             default:
                 return new ArrayList<byte[]>();
