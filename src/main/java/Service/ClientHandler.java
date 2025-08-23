@@ -3,6 +3,7 @@ package Service;
 import Commands.Command;
 import Commands.CommandHandler;
 import Commands.WriteCommand;
+import Commands.Impl.BlpopCommand;
 import Storage.DataStore;
 import util.RdbUtil;
 
@@ -111,15 +112,17 @@ public class ClientHandler implements Runnable{
                             }
                             Object result=command.execute(args, outputStream);
 
-                            if(result instanceof FullResyncResponse){
-                                FullResyncResponse resync=(FullResyncResponse)result;
-                                String fullResyncLine="+FULLRESYNC "+resync.getMasterReplid()+" "+resync.getMasterReplOffset()+"\r\n";
-                                outputStream.write(fullResyncLine.getBytes(StandardCharsets.UTF_8));
-                                byte[] rdbFile=RdbUtil.getEmptyRdbFile();
-                                outputStream.write(("$" + rdbFile.length + "\r\n").getBytes(StandardCharsets.UTF_8));
-                                outputStream.write(rdbFile);
-                            } else {
-                                RespEncoder.encode(outputStream, result);
+                            if (result != BlpopCommand.RESPONSE_ALREADY_SENT) {
+                                if(result instanceof FullResyncResponse){
+                                    FullResyncResponse resync=(FullResyncResponse)result;
+                                    String fullResyncLine="+FULLRESYNC "+resync.getMasterReplid()+" "+resync.getMasterReplOffset()+"\r\n";
+                                    outputStream.write(fullResyncLine.getBytes(StandardCharsets.UTF_8));
+                                    byte[] rdbFile=RdbUtil.getEmptyRdbFile();
+                                    outputStream.write(("$" + rdbFile.length + "\r\n").getBytes(StandardCharsets.UTF_8));
+                                    outputStream.write(rdbFile);
+                                } else {
+                                    RespEncoder.encode(outputStream, result);
+                                }
                             }
                         }
                     }
