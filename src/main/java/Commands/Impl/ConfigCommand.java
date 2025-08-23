@@ -22,7 +22,7 @@ public class ConfigCommand implements Command {
             return new Exception("wrong number of arguments for 'config' command");
         }
 
-        String subCommand = new String(args.get(0), StandardCharsets.UTF_8);
+        String subCommand = new String(args.get(0), StandardCharsets.UTF_8).toLowerCase();
 
         if("get".equals(subCommand)){
             return handleGet(args.subList(1, args.size()));
@@ -36,7 +36,7 @@ public class ConfigCommand implements Command {
             return new Exception("wrong number of arguments for 'config get' command");
         }
 
-        String parameter = new String(getArgs.get(0), StandardCharsets.UTF_8);
+        String parameter = new String(getArgs.get(0), StandardCharsets.UTF_8).toLowerCase();
         DataStore dataStore = DataStore.getInstance();
 
         String value;
