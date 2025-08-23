@@ -10,7 +10,6 @@ import java.util.List;
 
 /**
  * @author Achilles
- * @created 09/03/2022 - 09:05
  */
 public class BlpopCommand implements Command {
     @Override
@@ -23,26 +22,29 @@ public class BlpopCommand implements Command {
         }
 
         try {
-            // **KEY FIX**: Changed back to Double.parseDouble to handle decimal timeouts like "0.3"
             double timeout = Double.parseDouble(new String(args.get(args.size() - 1), StandardCharsets.UTF_8));
             List<byte[]> keys = args.subList(0, args.size() - 1);
             String keysStr = new String(keys.get(0), StandardCharsets.UTF_8);
 
             System.out.println("[BlpopCommand][Thread-" + threadId + "] Calling DataStore.blpop for key: " + keysStr);
+            // 假设 DataStore.blpop 返回 Object[] { byte[] key, byte[] value }
             Object[] result = DataStore.getInstance().blpop(keys, timeout);
             System.out.println("[BlpopCommand][Thread-" + threadId + "] DataStore.blpop returned.");
 
             if (result == null) {
                 System.out.println("[BlpopCommand][Thread-" + threadId + "] Result is null (timeout). Returning null.");
-                return null; // This will be encoded as a RESP Null
+                return null; // 将被 RespEncoder 编码为 RESP Null
             } else {
                 System.out.println("[BlpopCommand][Thread-" + threadId + "] Result is not null. Formatting response.");
+                // **关键修复**: 手动构建一个 List<byte[]> 来确保响应格式的正确性。
+                // BLPOP 的响应是一个包含两个元素的数组：key 和 value。
                 if (result.length == 2 && result[0] instanceof byte[] && result[1] instanceof byte[]) {
                     List<byte[]> responseList = new ArrayList<>();
-                    responseList.add((byte[]) result[0]); // Add key
-                    responseList.add((byte[]) result[1]); // Add value
+                    responseList.add((byte[]) result[0]); // 添加 key
+                    responseList.add((byte[]) result[1]); // 添加 value
                     return responseList;
                 } else {
+                    // 如果 DataStore 返回了意料之外的格式，返回一个错误
                     return new Exception("Internal error: DataStore returned unexpected format for BLPOP");
                 }
             }
