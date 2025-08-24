@@ -124,8 +124,10 @@ public class ClientHandler implements Runnable{
                                 DataStore.getInstance().propagateCommand(commandParts);
                             }
                             Object result=command.execute(args, outputStream);
-                            RespEncoder.encode(outputStream, result);
-                            if(result==SubscribeCommand.STATE_CHANGED_TO_SUBSCRIBED){
+
+                            if(result instanceof SubscribeCommand.SubscribeResult){
+                                SubscribeCommand.SubscribeResult subResult=(SubscribeCommand.SubscribeResult) result;
+                                RespEncoder.encode(outputStream, subResult.responsePayload);
                                 this.isSubscribed=true;
                             }
 
