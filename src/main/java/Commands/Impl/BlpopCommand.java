@@ -49,6 +49,7 @@ public class BlpopCommand implements Command {
                     RespEncoder.encode(os, new Exception("Internal error: DataStore returned unexpected format for BLPOP"));
                 }
             }
+            os.flush();
 
             /**
              * **改动 3: 返回我们的信号对象**
@@ -59,6 +60,7 @@ public class BlpopCommand implements Command {
             // 如果在整个过程中发生任何异常，也直接在这里发送错误响应
             try {
                 RespEncoder.encode(os, e);
+                os.flush();
             } catch (IOException ioException) {
                 ioException.printStackTrace();
             }

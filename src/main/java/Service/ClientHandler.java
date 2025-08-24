@@ -12,9 +12,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -27,8 +25,11 @@ public class ClientHandler implements Runnable{
     private final CommandHandler commandHandler;
     private boolean inTransaction = false;
     private final Queue<List<byte[]>> transactionQueue=new LinkedList<>();
-    //用于追踪客户端是否处于订阅模式的状态变量
     private boolean isSubscribed = false;
+    // 订阅模式下命令白名单
+    private static final Set<String> ALLOWED_SUBSCRIBE_COMMANDS = new HashSet<>(Arrays.asList(
+            "subscribe", "unsubscribe", "psubscribe", "punsubscribe", "ping", "quit"
+    ));
 
 
     public ClientHandler(Socket socket, CommandHandler commandHandler) {
@@ -54,7 +55,14 @@ public class ClientHandler implements Runnable{
                     break;
                 }
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
+                String lowerCaseCommandName = commandName.toLowerCase();
 
+                if(!ALLOWED_SUBSCRIBE_COMMANDS.contains(lowerCaseCommandName)) {
+                    String errorMsg = "only PSUBSCRIBE, SUBSCRIBE, PUNSUBSCRIBE, UNSUBSCRIBE, PING and QUIT are allowed in this context";
+                    RespEncoder.encode(outputStream, new Exception(errorMsg));
+                    outputStream.flush();
+                    continue;
+                }
                 if ("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size() > 2
                         && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
 
@@ -64,8 +72,6 @@ public class ClientHandler implements Runnable{
                 }
 
                 // **KEY FIX 2**: Convert to lowercase *after* the ACK check
-                String lowerCaseCommandName = commandName.toLowerCase();
-
                 if (inTransaction) {
                     //如果在事务中
                     if ("exec".equals(commandName)) {
