@@ -1,7 +1,9 @@
 package Service;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Commands.CommandHandler;
+import Commands.Impl.ConfigCommand;
 import Commands.Impl.PingCommand;
 import Commands.Impl.SubscribeCommand;
 import Commands.WriteCommand;
@@ -80,6 +82,8 @@ public class ClientHandler implements Runnable{
                     //如果在事务中
                     if ("exec".equals(commandName)) {
                         List<Object> results = new LinkedList<>();
+                        CommandContext context = new CommandContext(outputStream,this.isSubscribed);
+
                         for (List<byte[]> queuedCommandParts : transactionQueue) {
                             String queuedCommandName = new String(queuedCommandParts.get(0), StandardCharsets.UTF_8);
                             List<byte[]> queuedArgs = queuedCommandParts.subList(1, queuedCommandParts.size());
@@ -87,7 +91,7 @@ public class ClientHandler implements Runnable{
                             Command commandToExecute = commandHandler.getCommand(queuedCommandName);
 
                             if (commandToExecute != null) {
-                                results.add(commandToExecute.execute(queuedArgs, outputStream));
+                                results.add(commandToExecute.execute(queuedArgs, context));
 
                             } else {
                                 results.add(new Exception("unknown command '" + queuedCommandName + "'"));
@@ -122,13 +126,12 @@ public class ClientHandler implements Runnable{
                         if (command == null) {
                             RespEncoder.encode(outputStream, new Exception("unknown command '" + commandName + "'"));
                         } else {
-                            if(command instanceof PingCommand){
-                                ((PingCommand) command).setClientSubscribed(this.isSubscribed);
-                            }
+                            CommandContext context = new CommandContext(outputStream,this.isSubscribed);
+
                             if (command instanceof WriteCommand) {
                                 DataStore.getInstance().propagateCommand(commandParts);
                             }
-                            Object result = command.execute(args, outputStream);
+                            Object result = command.execute(args, context);
 
                             if (result == Command.STATE_CHANGE_SUBSCRIBE) {
                                 this.isSubscribed = true;

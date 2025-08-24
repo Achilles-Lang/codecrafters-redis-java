@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Service.FullResyncResponse;
 import Storage.DataStore;
 import Storage.ReplicationInfo;
@@ -13,8 +14,8 @@ import java.util.List;
  */
 public class PsyncCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
-        DataStore.getInstance().addReplica(os);
+    public Object execute(List<byte[]> args, CommandContext context) {
+        DataStore.getInstance().addReplica(context.getOutputStream());
 
         ReplicationInfo info = DataStore.getInstance().getReplicationInfo();
         return new FullResyncResponse(info.getMasterReplid(), info.getMasterReplOffset());

@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Config.WrongTypeException;
 import Storage.DataStore;
 import Storage.StreamEntry;
@@ -18,7 +19,7 @@ public class XreadCommand implements Command {
     private static final StreamEntryID LATEST_ID_PLACEHOLDER = new StreamEntryID(-1, -1);
 
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
         // XREAD streams <key> <id>
         try {
             //默认，非阻塞

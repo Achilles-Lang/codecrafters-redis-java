@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Storage.DataStore;
 import Storage.ReplicationInfo;
 
@@ -14,7 +15,7 @@ import java.util.StringJoiner;
  */
 public class InfoCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
 // INFO 命令可以不带参数，也可以带一个参数 "replication"
         if (args.size() > 1) {
             return new Exception("wrong number of arguments for 'info' command");

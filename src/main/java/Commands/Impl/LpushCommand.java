@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Commands.WriteCommand;
 import Config.WrongTypeException;
 import Storage.DataStore;
@@ -11,7 +12,7 @@ import java.util.List;
 
 public class LpushCommand implements WriteCommand {
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
         if (args.size() < 2) {
             return new Exception("wrong number of arguments for 'lpush' command");
         }

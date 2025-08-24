@@ -14,6 +14,11 @@ public interface Command {
      * 并且客户端的连接状态需要转换到“订阅模式”。
      */
     Object STATE_CHANGE_SUBSCRIBE = new Object();
-
-    Object execute(List<byte[]> args, OutputStream os);
+    /**
+     * **关键修改**: execute 方法现在接收一个 CommandContext 对象。
+     * @param args 命令的参数
+     * @param context 包含客户端状态和输出流的上下文
+     * @return 命令执行的结果
+     */
+    Object execute(List<byte[]> args, CommandContext context);
 }

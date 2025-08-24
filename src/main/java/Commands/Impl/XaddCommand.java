@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Commands.WriteCommand;
 import Storage.DataStore;
 
@@ -15,7 +16,7 @@ import java.util.Map;
  */
 public class XaddCommand implements WriteCommand {
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
         System.out.println("[DEBUG] XaddCommand: Starting execution.");
         try {
             if (args.size() < 4 || args.size() % 2 != 0) {

@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Config.WrongTypeException;
 import Storage.DataStore;
 
@@ -10,7 +11,7 @@ import java.util.List;
 
 public class LrangeCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
         if (args.size() != 3) {
             return new Exception("wrong number of arguments for 'lrange' command");
         }

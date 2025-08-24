@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Storage.DataStore;
 
 import java.io.OutputStream;
@@ -14,7 +15,7 @@ import java.util.List;
  */
 public class ConfigCommand implements Command {
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
         System.out.println("[DIAGNOSTIC] >>> ConfigCommand.execute() was called! <<<");
 
 

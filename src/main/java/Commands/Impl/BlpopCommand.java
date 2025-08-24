@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Service.RespEncoder;
 import Storage.DataStore;
 
@@ -19,7 +20,7 @@ public class BlpopCommand implements Command {
     public static final Object RESPONSE_ALREADY_SENT = new Object();
 
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
         if (args.size() < 2) {
             return new Exception("wrong number of arguments for 'blpop' command");
         }
@@ -37,20 +38,20 @@ public class BlpopCommand implements Command {
              */
             if (result == null) {
                 // 超时，直接发送 RESP Null
-                RespEncoder.encode(os, null);
+                RespEncoder.encode(context.getOutputStream(), null);
             } else {
                 // 成功获取，构建并直接发送响应数组
                 if (result.length == 2 && result[0] instanceof byte[] && result[1] instanceof byte[]) {
                     List<byte[]> responseList = new ArrayList<>();
                     responseList.add((byte[]) result[0]); // key
                     responseList.add((byte[]) result[1]); // value
-                    RespEncoder.encode(os, responseList);
+                    RespEncoder.encode(context.getOutputStream(), responseList);
                 } else {
-                    RespEncoder.encode(os, new Exception("Internal error: DataStore returned unexpected format for BLPOP"));
+                    RespEncoder.encode(context.getOutputStream(), new Exception("Internal error: DataStore returned unexpected format for BLPOP"));
                 }
             }
             System.out.println("[DIAGNOSTIC] BLPOP: Attempting to flush output stream...");
-            os.flush();
+            context.getOutputStream().flush();
             System.out.println("[DIAGNOSTIC] BLPOP: Flush completed successfully.");
 
 
@@ -62,9 +63,9 @@ public class BlpopCommand implements Command {
         } catch (Exception e) {
             // 如果在整个过程中发生任何异常，也直接在这里发送错误响应
             try {
-                RespEncoder.encode(os, e);
+                RespEncoder.encode(context.getOutputStream(), e);
                 System.out.println("[DIAGNOSTIC] BLPOP: Attempting to flush error stream...");
-                os.flush();
+                context.getOutputStream().flush();
                 System.out.println("[DIAGNOSTIC] BLPOP: Flush error completed successfully.");
 
             } catch (IOException ioException) {

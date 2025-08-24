@@ -1,6 +1,7 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Service.RespEncoder;
 import Storage.DataStore;
 
@@ -17,7 +18,7 @@ import java.util.List;
 public class SubscribeCommand implements Command {
 
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
+    public Object execute(List<byte[]> args, CommandContext context) {
         if (args.isEmpty()) {
             return new Exception("wrong number of arguments for 'subscribe' command");
         }
@@ -28,17 +29,17 @@ public class SubscribeCommand implements Command {
             // 遍历所有请求订阅的频道
             for (byte[] channelBytes : args) {
                 String channel = new String(channelBytes, StandardCharsets.UTF_8);
-                dataStore.subscribe(channel, os);
+                dataStore.subscribe(channel, context.getOutputStream());
 
-                int totalSubscriptions = dataStore.getSubscriptionCountForClient(os);
+                int totalSubscriptions = dataStore.getSubscriptionCountForClient(context.getOutputStream());
 
                 List<Object> responsePayload = new ArrayList<>();
                 responsePayload.add("subscribe".getBytes(StandardCharsets.UTF_8));
                 responsePayload.add(channelBytes);
                 responsePayload.add(totalSubscriptions);
 
-                RespEncoder.encode(os, responsePayload);
-                os.flush();
+                RespEncoder.encode(context.getOutputStream(), responsePayload);
+                context.getOutputStream().flush();
             }
         } catch (IOException e) {
             return e;

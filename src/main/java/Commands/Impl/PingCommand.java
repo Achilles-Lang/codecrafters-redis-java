@@ -1,53 +1,42 @@
 package Commands.Impl;
 
 import Commands.Command;
+import Commands.CommandContext;
 
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * @author Achilles
- * 处理PING命令
- * @create 2020-04-07 下午 04:05
- * PING -> 返回 PONG (Simple String)
- * PING <message> -> 返回 <message> (Bulk String)
+ * 实现了 PING 命令，完全无状态。
  */
 public class PingCommand implements Command {
-    //存储客户端的状态
-    private boolean isClientSubscribed=false;
 
-    public void setClientSubscribed(boolean isClientSubscribed){
-        this.isClientSubscribed=isClientSubscribed;
-    }
+    // **关键修改**: 移除了所有成员变量 (isClientSubscribed) 和 setter 方法。
 
     @Override
-    public Object execute(List<byte[]> args, OutputStream os) {
-        try {
-            if(this.isClientSubscribed){
-                //订阅模式下
-                List<byte[]> response=new ArrayList<>();
-                response.add("pong".getBytes(StandardCharsets.UTF_8));
+    public Object execute(List<byte[]> args, CommandContext context) {
+        // **关键修改**: 从传入的 context 对象中获取客户端状态
+        if (context.isClientSubscribed()) {
+            // 订阅模式下的响应
+            List<byte[]> response = new ArrayList<>();
+            response.add("pong".getBytes(StandardCharsets.UTF_8));
 
-                if(args.isEmpty()){
-                    //如果PING带有参数，则返回该参数，否则返回空字符串
-                    response.add("".getBytes(StandardCharsets.UTF_8));
-                } else {
-                    response.add(args.get(0));
-                }
-                return response;
+            if (args.isEmpty()) {
+                response.add("".getBytes(StandardCharsets.UTF_8));
             } else {
-                //非订阅模式下
-                if(args.isEmpty()){
-                    return "PONG".getBytes(StandardCharsets.UTF_8);
-                } else {
-                    return args.get(0);
-                }
+                response.add(args.get(0));
             }
-        } finally {
-            this.isClientSubscribed=false;
-        }
+            return response;
 
+        } else {
+            // 普通模式下的响应
+            if (args.isEmpty()) {
+                return "PONG";
+            } else {
+                return args.get(0);
+            }
+        }
     }
 }
