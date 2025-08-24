@@ -123,7 +123,6 @@ public class Protocol {
     private int readInteger() throws IOException {
         return Integer.parseInt(readLine());
     }
-
     private String readLine() throws IOException {
         StringBuilder sb = new StringBuilder();
         int b;
