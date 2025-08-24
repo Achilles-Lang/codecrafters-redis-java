@@ -35,7 +35,7 @@ public class DataStore {
     // 用于存储频道和订阅者列表的 Map
     private final Map<String,List<OutputStream>> subscriptions=new ConcurrentHashMap<>();
     // 用于追踪每个客户端订阅了那些频道
-    private final Map<String, Set<String>> clientSubscriptions = new ConcurrentHashMap<>();
+    private final Map<OutputStream, Set<String>> clientSubscriptions = new ConcurrentHashMap<>();
 
 
     public void setRdbConfig(String dir,String fileName){
@@ -686,7 +686,7 @@ public class DataStore {
         subscriptions.computeIfAbsent(channel, k -> new CopyOnWriteArrayList<>()).add(clientStream);
 
         // 2. 记录 "客户端 -> 频道集合" 的关系
-        clientSubscriptions.computeIfAbsent(clientStream.toString(), k -> ConcurrentHashMap.newKeySet()).add(channel);
+        clientSubscriptions.computeIfAbsent(clientStream, k -> ConcurrentHashMap.newKeySet()).add(channel);
     }
 
     /**
