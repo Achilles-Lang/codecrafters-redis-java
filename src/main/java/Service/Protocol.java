@@ -18,12 +18,8 @@ public class Protocol {
 
     public List<byte[]> readCommand() throws IOException {
         int firstByte = inputStream.read();
-        if (firstByte == -1) {
-            return null;
-        }
-        if ((char) firstByte == '*') {
-            return parseArray();
-        }
+        if (firstByte == -1) return null;
+        if ((char) firstByte == '*') return parseArray();
         throw new IOException("Unsupported command format. Expected an Array ('*').");
     }
 
