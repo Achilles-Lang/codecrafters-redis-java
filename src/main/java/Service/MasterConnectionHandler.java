@@ -1,10 +1,11 @@
+// 文件路径: src/main/java/Service/MasterConnectionHandler.java
+
 package Service;
 
 import Commands.Command;
-import Commands.CommandContext;
 import Commands.CommandHandler;
+import util.RdbUtil;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,7 +18,6 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-    private long bytesProcessed = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -30,72 +30,61 @@ public class MasterConnectionHandler implements Runnable {
     public void run() {
         try (Socket masterSocket = new Socket(masterHost, masterPort)) {
             OutputStream os = masterSocket.getOutputStream();
-            InputStream is = new BufferedInputStream(masterSocket.getInputStream());
+            InputStream is = masterSocket.getInputStream();
             Protocol parser = new Protocol(is);
 
-            // --- 握手流程 ---
             sendCommand(os, "PING");
-            parser.parseOne(); // Consume PONG
+            String pongResponse = parser.readSimpleString();
+            if (pongResponse == null || !pongResponse.equalsIgnoreCase("PONG")) {
+                System.out.println("Error: Did not receive PONG from master.");
+                return;
+            }
 
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            parser.parseOne(); // Consume OK
-
+            parser.readSimpleString();
             sendCommand(os, "REPLCONF", "capa", "psync2");
-            parser.parseOne(); // Consume OK
+            parser.readSimpleString();
 
             sendCommand(os, "PSYNC", "?", "-1");
-            parser.parseOne(); // 消费 +FULLRESYNC...
+            String psyncResponse = parser.readSimpleString();
+            if (psyncResponse == null || !psyncResponse.startsWith("FULLRESYNC")) {
+                System.out.println("Error: Did not receive FULLRESYNC from master.");
+                return;
+            }
 
-            System.out.println("Waiting for RDB file...");
-            // RDB 文件是握手的一部分，它的字节数不计入复制偏移量
-            parser.readRdbFile();
+            // **关键修复点**：现在 readRdbFile 应该能完整地读取 RDB 文件
+            byte[] rdbFile = parser.readRdbFile();
+            if (rdbFile != null) {
+                System.out.println("Handshake successful. RDB file received. Listening for propagated commands.");
+            } else {
+                System.out.println("Error: Failed to read RDB file from master.");
+                return;
+            }
 
-            System.out.println("Handshake successful. Listening for propagated commands.");
-
+            // --- 命令处理循环 ---
             while (!masterSocket.isClosed()) {
-                CommandResult result = parser.readCommandWithCount();
-                if (result == null || result.parts == null || result.parts.isEmpty()) {
+                List<byte[]> commandParts = parser.readCommand();
+                if (commandParts == null || commandParts.isEmpty()) {
                     break;
                 }
-
-                List<byte[]> commandParts = result.parts;
-                String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
-
-                if ("REPLCONF".equals(commandName) && commandParts.size() > 1
-                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
-
-                    System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
-                    sendCommand(os, "REPLCONF", "ACK", String.valueOf(bytesProcessed));
-                    continue;
-                }
-
-                bytesProcessed += result.bytesRead;
-
-                System.out.println("Received propagated command: " + commandName);
+                String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
                 List<byte[]> args = commandParts.subList(1, commandParts.size());
-                Command command = commandHandler.getCommand(commandName.toLowerCase());
-
+                Command command = this.commandHandler.getCommand(commandName);
                 if (command != null) {
-                    CommandContext context = new CommandContext(os, false);
-                    command.execute(args, context);
-                } else {
-                    System.out.println("Unknown propagated command: " + commandName);
+                    command.execute(args, null);
                 }
             }
+
         } catch (IOException e) {
             System.out.println("IOException in MasterConnectionHandler: " + e.getMessage());
-            e.printStackTrace();
         }
     }
-
     private void sendCommand(OutputStream os, String... args) throws IOException {
-        StringBuilder commandBuilder = new StringBuilder();
-        commandBuilder.append("*").append(args.length).append("\r\n");
+        StringBuilder cmd = new StringBuilder().append("*").append(args.length).append("\r\n");
         for (String arg : args) {
-            commandBuilder.append("$").append(arg.getBytes(StandardCharsets.UTF_8).length).append("\r\n");
-            commandBuilder.append(arg).append("\r\n");
+            cmd.append("$").append(arg.length()).append("\r\n").append(arg).append("\r\n");
         }
-        os.write(commandBuilder.toString().getBytes(StandardCharsets.UTF_8));
+        os.write(cmd.toString().getBytes(StandardCharsets.UTF_8));
         os.flush();
     }
 }
