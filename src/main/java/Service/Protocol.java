@@ -41,37 +41,20 @@ public class Protocol {
         this.is = new CountingInputStream(is);
     }
 
-    /**
-     * **KEY FIX**: This method now handles the RDB file as a special case.
-     * It reads exactly the specified number of bytes and does NOT look for a trailing CRLF.
-     */
     public void readRdbFile() throws IOException {
         int firstByte = is.read();
         if (firstByte != '$') {
             throw new IOException("Expected RDB file to start with '$', but got: " + (char)firstByte);
         }
-        int rdbLength = readInteger();
-        if (rdbLength > 0) {
-            long bytesToSkip = rdbLength;
-            while (bytesToSkip > 0) {
-                long skipped = is.skip(bytesToSkip);
-                if (skipped <= 0) {
-                    // If skip() returns 0, read a single byte to ensure progress
-                    if (is.read() == -1) {
-                        throw new IOException("Unexpected end of stream while skipping RDB file.");
-                    }
-                    bytesToSkip--;
-                } else {
-                    bytesToSkip -= skipped;
-                }
-            }
-        }
+        // '$' 已被消费，现在读取 Bulk String 的剩余部分
+        readBulkStringPayload();
     }
 
     public CommandResult readCommandWithCount() throws IOException {
         is.resetCount();
         Object parsed = parseOne();
         if (parsed instanceof List) {
+            // RESP 命令总是以数组形式出现，我们需要将 List<Object> 转换为 List<byte[]>
             List<?> objectList = (List<?>) parsed;
             List<byte[]> commandParts = new ArrayList<>();
             for (Object item : objectList) {
@@ -86,7 +69,15 @@ public class Protocol {
         throw new IOException("Expected command to be a RESP Array, but got: " + (parsed != null ? parsed.getClass().getSimpleName() : "null"));
     }
 
-    public Object parseOne() throws IOException {
+    public List<byte[]> readCommand() throws IOException {
+        CommandResult result = readCommandWithCount();
+        return result.parts;
+    }
+
+    /**
+     * **核心修复**: 这是一个通用的解析方法，能处理任何 RESP 类型。
+     */
+    Object parseOne() throws IOException {
         int firstByte = is.read();
         if (firstByte == -1) { return null; }
         char type = (char) firstByte;
@@ -103,6 +94,7 @@ public class Protocol {
         if (arrayLength == -1) { return null; }
         List<Object> result = new ArrayList<>(arrayLength);
         for (int i = 0; i < arrayLength; i++) {
+            // 递归调用 parseOne 来解析数组中的每一个元素
             result.add(parseOne());
         }
         return result;
@@ -131,7 +123,6 @@ public class Protocol {
     private int readInteger() throws IOException {
         return Integer.parseInt(readLine());
     }
-
     private String readLine() throws IOException {
         StringBuilder sb = new StringBuilder();
         int b;
