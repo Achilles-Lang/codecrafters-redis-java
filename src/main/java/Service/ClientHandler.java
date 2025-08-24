@@ -125,7 +125,7 @@ public class ClientHandler implements Runnable{
                             }
                             Object result=command.execute(args, outputStream);
                             RespEncoder.encode(outputStream, result);
-                            if(command instanceof SubscribeCommand){
+                            if(result==SubscribeCommand.STATE_CHANGED_TO_SUBSCRIBED){
                                 this.isSubscribed=true;
                             }
 
