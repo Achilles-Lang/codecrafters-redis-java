@@ -49,15 +49,6 @@ public class ClientHandler implements Runnable{
             Protocol protocol = new Protocol(socket.getInputStream());
 
             while (!socket.isClosed()) {
-                if (isSubscribed) {
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                        break;
-                    }
-                    continue;
-                }
-
                 List<byte[]> commandParts = protocol.readCommand();
                 if (commandParts == null || commandParts.isEmpty()) {
                     break;
