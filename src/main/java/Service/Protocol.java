@@ -53,7 +53,9 @@ public class Protocol {
             while (bytesSkipped < rdbLength) {
                 long skipped = is.skip(rdbLength - bytesSkipped);
                 if (skipped <= 0) {
-                    if (is.read() == -1) throw new IOException("Unexpected end of stream while skipping RDB file.");
+                    if (is.read() == -1) {
+                        throw new IOException("Unexpected end of stream while skipping RDB file.");
+                    }
                     bytesSkipped++;
                 } else {
                     bytesSkipped += skipped;
@@ -88,6 +90,10 @@ public class Protocol {
     }
 
     private List<byte[]> readArray() throws IOException {
+        int firstByte = is.read();
+        if((char) firstByte != '*') {
+            throw new IOException("Expected Array, but got " + (char) firstByte);
+        }
         int arrayLength = readInteger();
         if (arrayLength == -1) { return null; }
         List<byte[]> result = new ArrayList<>(arrayLength);
@@ -99,8 +105,8 @@ public class Protocol {
 
     private byte[] readBulkString() throws IOException {
         int firstByte = is.read();
-        if (firstByte != '$') {
-            throw new IOException("Expected Bulk String to start with '$', but got " + (char) firstByte);
+        if((char) firstByte != '$') {
+            throw new IOException("Expected Bulk String, but got " + (char) firstByte);
         }
         int stringLength = readInteger();
         if (stringLength == -1) { return null; }
