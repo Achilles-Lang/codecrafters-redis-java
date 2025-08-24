@@ -79,35 +79,44 @@ public class Protocol {
         int firstByte = is.read();
         if (firstByte == -1) { return null; }
         char type = (char) firstByte;
-        if (type == '*') { return readArray(); }
-        else { throw new IOException("Unsupported RESP type as top-level command: " + type); }
+
+        switch (type) {
+            case '*':
+                return readArray();
+            case '$':
+                // 虽然顶层命令通常是数组，但为了健壮性，我们也处理单个 Bulk String
+                List<byte[]> singleCommand = new ArrayList<>();
+                singleCommand.add(readBulkString(false)); // 传入 false 因为 '$' 已被读取
+                return singleCommand;
+            default:
+                throw new IOException("Unsupported RESP type as top-level command: " + type);
+        }
     }
 
     public String readSimpleString() throws IOException {
-        // Simple String can start with '+' or '-' or ':'
-        // We just need to read the line
         return readLine();
     }
 
     private List<byte[]> readArray() throws IOException {
-        int firstByte = is.read();
-        if((char) firstByte != '*') {
-            throw new IOException("Expected Array, but got " + (char) firstByte);
-        }
+        // **关键修复**: 移除了这里多余的 is.read() 调用。
+        // 调用此方法的 readCommandInternal() 已经读取了 '*'。
         int arrayLength = readInteger();
         if (arrayLength == -1) { return null; }
         List<byte[]> result = new ArrayList<>(arrayLength);
         for (int i = 0; i < arrayLength; i++) {
-            result.add(readBulkString());
+            result.add(readBulkString(true)); // 传入 true 因为需要读取 '$'
         }
         return result;
     }
 
-    private byte[] readBulkString() throws IOException {
-        int firstByte = is.read();
-        if((char) firstByte != '$') {
-            throw new IOException("Expected Bulk String, but got " + (char) firstByte);
+    private byte[] readBulkString(boolean readPrefix) throws IOException {
+        if (readPrefix) {
+            int firstByte = is.read();
+            if (firstByte != '$') {
+                throw new IOException("Expected Bulk String to start with '$', but got " + (char) firstByte);
+            }
         }
+
         int stringLength = readInteger();
         if (stringLength == -1) { return null; }
 
