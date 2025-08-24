@@ -57,12 +57,15 @@ public class ClientHandler implements Runnable{
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
                 String lowerCaseCommandName = commandName.toLowerCase();
 
-                if(!ALLOWED_SUBSCRIBE_COMMANDS.contains(lowerCaseCommandName)) {
-                    String errorMsg = "only PSUBSCRIBE, SUBSCRIBE, PUNSUBSCRIBE, UNSUBSCRIBE, PING and QUIT are allowed in this context";
-                    RespEncoder.encode(outputStream, new Exception(errorMsg));
-                    outputStream.flush();
-                    continue;
+                if(isSubscribed){
+                    if(!ALLOWED_SUBSCRIBE_COMMANDS.contains(lowerCaseCommandName)){
+                        String errorMsg = "Can't execute '" + lowerCaseCommandName + "'";
+                       RespEncoder.encode(outputStream, new Exception(errorMsg));
+                       outputStream.flush();
+                       continue;
+                    }
                 }
+
                 if ("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size() > 2
                         && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
 
