@@ -47,8 +47,9 @@ public class MasterConnectionHandler implements Runnable {
             parser.readSimpleString(); // 消费 +FULLRESYNC...
 
             System.out.println("Waiting for RDB file...");
-            // **关键修复**: RDB 文件是握手的一部分，它的字节数不计入复制偏移量
-            parser.readRdbFile();
+            // **关键修复**: 接收 RDB 文件的大小并累加到偏移量中
+            long rdbFileBytes = parser.readRdbFile();
+            bytesProcessed += rdbFileBytes;
 
             System.out.println("Handshake successful. Listening for propagated commands.");
 
