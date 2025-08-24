@@ -34,17 +34,21 @@ public class MasterConnectionHandler implements Runnable {
             Protocol parser = new Protocol(is);
 
             // --- 握手流程 ---
+            System.out.println("Sending PING to master...");
             sendCommand(os, "PING");
-            parser.parseOne(); // Consume PONG
+            parser.readSimpleString(); // Consume PONG
 
+            System.out.println("Sending REPLCONF listening-port...");
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            parser.parseOne(); // Consume OK
+            parser.readSimpleString(); // Consume OK
 
+            System.out.println("Sending REPLCONF capa psync2...");
             sendCommand(os, "REPLCONF", "capa", "psync2");
-            parser.parseOne(); // Consume OK
+            parser.readSimpleString(); // Consume OK
 
+            System.out.println("Sending PSYNC...");
             sendCommand(os, "PSYNC", "?", "-1");
-            parser.parseOne(); // Consume +FULLRESYNC...
+            parser.readSimpleString(); // Consume +FULLRESYNC...
 
             System.out.println("Waiting for RDB file...");
             parser.readRdbFile();

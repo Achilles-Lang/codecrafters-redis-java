@@ -41,9 +41,6 @@ public class Protocol {
         this.is = new CountingInputStream(is);
     }
 
-    /**
-     * **关键修复**: 这个方法现在独立处理 RDB 文件，不再调用 readBulkStringPayload。
-     */
     public void readRdbFile() throws IOException {
         int firstByte = is.read();
         if (firstByte != '$') {
@@ -55,7 +52,6 @@ public class Protocol {
             while (bytesToSkip > 0) {
                 long skipped = is.skip(bytesToSkip);
                 if (skipped <= 0) {
-                    // 如果 skip 返回 0 或负数，通过读取一个字节来确保前进
                     if (is.read() == -1) {
                         throw new IOException("Unexpected end of stream while skipping RDB file.");
                     }
@@ -69,51 +65,40 @@ public class Protocol {
 
     public CommandResult readCommandWithCount() throws IOException {
         is.resetCount();
-        Object parsed = parseOne();
-        if (parsed instanceof List) {
-            List<?> objectList = (List<?>) parsed;
-            List<byte[]> commandParts = new ArrayList<>();
-            for (Object item : objectList) {
-                if (item instanceof byte[]) {
-                    commandParts.add((byte[]) item);
-                } else {
-                    // Redis 命令数组中只应包含 Bulk String
-                    throw new IOException("Command array contained non-bulk string element.");
-                }
-            }
-            return new CommandResult(commandParts, is.getCount());
-        }
-        throw new IOException("Expected command to be a RESP Array, but got: " + (parsed != null ? parsed.getClass().getSimpleName() : "null"));
+        List<byte[]> commandParts = readCommand();
+        if (commandParts == null) { return null; }
+        return new CommandResult(commandParts, is.getCount());
     }
 
     public List<byte[]> readCommand() throws IOException {
-        CommandResult result = readCommandWithCount();
-        return result.parts;
-    }
-
-    public Object parseOne() throws IOException {
         int firstByte = is.read();
         if (firstByte == -1) { return null; }
         char type = (char) firstByte;
-        switch (type) {
-            case '+': return readLine();
-            case '$': return readBulkStringPayload();
-            case '*': return readArrayPayload();
-            default: throw new IOException("Unsupported RESP type: " + type);
+        if (type != '*') {
+            throw new IOException("Expected command to be a RESP Array, but got type: " + type);
         }
+        return readArrayPayload();
     }
 
-    private List<Object> readArrayPayload() throws IOException {
+    public String readSimpleString() throws IOException {
+        return readLine();
+    }
+
+    private List<byte[]> readArrayPayload() throws IOException {
         int arrayLength = readInteger();
         if (arrayLength == -1) { return null; }
-        List<Object> result = new ArrayList<>(arrayLength);
+        List<byte[]> result = new ArrayList<>(arrayLength);
         for (int i = 0; i < arrayLength; i++) {
-            result.add(parseOne());
+            result.add(readBulkString());
         }
         return result;
     }
 
-    private byte[] readBulkStringPayload() throws IOException {
+    private byte[] readBulkString() throws IOException {
+        int firstByte = is.read();
+        if (firstByte != '$') {
+            throw new IOException("Expected Bulk String to start with '$', but got: " + (char) firstByte);
+        }
         int stringLength = readInteger();
         if (stringLength == -1) { return null; }
 
