@@ -81,10 +81,11 @@ public class ClientHandler implements Runnable{
                         && "*".equals(new String(commandParts.get(2), StandardCharsets.UTF_8))) {
 
                     System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
-                    // 获取当前偏移量，此时还没有处理任何写命令，所以应该是 0
+
+                    // 在这里获取当前偏移量。因为还没有处理任何写命令，所以值应该为 0。
                     long offset = DataStore.getInstance().getReplicaOffset();
 
-                    // 构造并发送 REPLCONF ACK 响应
+                    // 构造并发送 REPLCONF ACK <offset> 响应
                     List<byte[]> ackResponse = new ArrayList<>();
                     ackResponse.add("REPLCONF".getBytes(StandardCharsets.UTF_8));
                     ackResponse.add("ACK".getBytes(StandardCharsets.UTF_8));
