@@ -37,6 +37,15 @@ public class DataStore {
     // 用于追踪每个客户端订阅了那些频道
     private final Map<OutputStream, Set<String>> clientSubscriptions = new ConcurrentHashMap<>();
 
+    private long replicaOffset=0L;
+
+    public synchronized long getReplicaOffset() {
+        return replicaOffset;
+    }
+
+    public synchronized void incrementReplicaOffset(long offset){
+        this.replicaOffset+=offset;
+    }
 
     public void setRdbConfig(String dir,String fileName){
         this.rdbDir=dir;

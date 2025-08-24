@@ -68,13 +68,31 @@ public class ClientHandler implements Runnable{
                        continue;
                     }
                 }
-
                 if ("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size() > 2
                         && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
 
                     long offset = Long.parseLong(new String(commandParts.get(2), StandardCharsets.UTF_8));
                     DataStore.getInstance().processAck(offset);
                     continue; // ACK processed, continue to next command
+                }
+
+                if ("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size() > 2
+                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))
+                        && "*".equals(new String(commandParts.get(2), StandardCharsets.UTF_8))) {
+
+                    System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
+                    // 获取当前偏移量，此时还没有处理任何写命令，所以应该是 0
+                    long offset = DataStore.getInstance().getReplicaOffset();
+
+                    // 构造并发送 REPLCONF ACK 响应
+                    List<byte[]> ackResponse = new ArrayList<>();
+                    ackResponse.add("REPLCONF".getBytes(StandardCharsets.UTF_8));
+                    ackResponse.add("ACK".getBytes(StandardCharsets.UTF_8));
+                    ackResponse.add(String.valueOf(offset).getBytes(StandardCharsets.UTF_8));
+
+                    RespEncoder.encode(outputStream, ackResponse);
+                    outputStream.flush();
+                    continue;
                 }
 
                 // **KEY FIX 2**: Convert to lowercase *after* the ACK check
@@ -129,6 +147,9 @@ public class ClientHandler implements Runnable{
                             CommandContext context = new CommandContext(outputStream,this.isSubscribed);
 
                             if (command instanceof WriteCommand) {
+                                long commandSize = calculateCommandSize(commandParts);
+
+                                DataStore.getInstance().incrementReplicaOffset(commandSize);
                                 DataStore.getInstance().propagateCommand(commandParts);
                             }
                             Object result = command.execute(args, context);
