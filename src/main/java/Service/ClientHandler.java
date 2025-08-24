@@ -57,6 +57,8 @@ public class ClientHandler implements Runnable{
                 if (commandParts == null || commandParts.isEmpty()) {
                     break;
                 }
+                long rawSize=calculateCommandSize(commandParts);
+                System.out.println("LOG: Received command, raw size = " + rawSize + " bytes.");
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
                 String lowerCaseCommandName = commandName.toLowerCase();
 
@@ -81,6 +83,7 @@ public class ClientHandler implements Runnable{
                         && "*".equals(new String(commandParts.get(2), StandardCharsets.UTF_8))) {
 
                     System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
+                    System.out.println("LOG: Handling REPLCONF GETACK *. Current replica offset is: " + DataStore.getInstance().getReplicaOffset());
 
                     // 在这里获取当前偏移量。因为还没有处理任何写命令，所以值应该为 0。
                     long offset = DataStore.getInstance().getReplicaOffset();
@@ -90,6 +93,9 @@ public class ClientHandler implements Runnable{
                     ackResponse.add("REPLCONF".getBytes(StandardCharsets.UTF_8));
                     ackResponse.add("ACK".getBytes(StandardCharsets.UTF_8));
                     ackResponse.add(String.valueOf(offset).getBytes(StandardCharsets.UTF_8));
+
+                    System.out.println("LOG: Sending ACK response with offset: " + new String(ackResponse.get(2), StandardCharsets.UTF_8));
+
 
                     RespEncoder.encode(outputStream, ackResponse);
                     outputStream.flush();
