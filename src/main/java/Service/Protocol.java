@@ -77,7 +77,7 @@ public class Protocol {
     /**
      * **核心修复**: 这是一个通用的解析方法，能处理任何 RESP 类型。
      */
-    private Object parseOne() throws IOException {
+    Object parseOne() throws IOException {
         int firstByte = is.read();
         if (firstByte == -1) { return null; }
         char type = (char) firstByte;

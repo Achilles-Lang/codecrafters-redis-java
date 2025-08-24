@@ -35,20 +35,19 @@ public class MasterConnectionHandler implements Runnable {
 
             // --- 握手流程 ---
             sendCommand(os, "PING");
-            parser.readSimpleString();
+            parser.parseOne(); // Consume PONG
 
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            parser.readSimpleString();
+            parser.parseOne(); // Consume OK
 
             sendCommand(os, "REPLCONF", "capa", "psync2");
-            parser.readSimpleString();
+            parser.parseOne(); // Consume OK
 
             sendCommand(os, "PSYNC", "?", "-1");
-            parser.readSimpleString(); // 消费 +FULLRESYNC...
+            parser.parseOne(); // 消费 +FULLRESYNC...
 
             System.out.println("Waiting for RDB file...");
-            // **关键修复**: RDB 文件是握手的一部分，它的字节数不计入复制偏移量
-            // 我们仍然需要读取它，但不再将其大小加到 bytesProcessed 中
+            // RDB 文件是握手的一部分，它的字节数不计入复制偏移量
             parser.readRdbFile();
 
             System.out.println("Handshake successful. Listening for propagated commands.");
