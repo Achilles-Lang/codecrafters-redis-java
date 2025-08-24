@@ -49,7 +49,10 @@ public class BlpopCommand implements Command {
                     RespEncoder.encode(os, new Exception("Internal error: DataStore returned unexpected format for BLPOP"));
                 }
             }
+            System.out.println("[DIAGNOSTIC] BLPOP: Attempting to flush output stream...");
             os.flush();
+            System.out.println("[DIAGNOSTIC] BLPOP: Flush completed successfully.");
+
 
             /**
              * **改动 3: 返回我们的信号对象**
@@ -60,7 +63,10 @@ public class BlpopCommand implements Command {
             // 如果在整个过程中发生任何异常，也直接在这里发送错误响应
             try {
                 RespEncoder.encode(os, e);
+                System.out.println("[DIAGNOSTIC] BLPOP: Attempting to flush error stream...");
                 os.flush();
+                System.out.println("[DIAGNOSTIC] BLPOP: Flush error completed successfully.");
+
             } catch (IOException ioException) {
                 ioException.printStackTrace();
             }
