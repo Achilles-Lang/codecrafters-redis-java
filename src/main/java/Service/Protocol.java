@@ -41,32 +41,49 @@ public class Protocol {
         this.is = new CountingInputStream(is);
     }
 
+    /**
+     * **关键修复**: 这个方法现在独立处理 RDB 文件，不再调用 readBulkStringPayload。
+     */
     public void readRdbFile() throws IOException {
         int firstByte = is.read();
         if (firstByte != '$') {
             throw new IOException("Expected RDB file to start with '$', but got: " + (char)firstByte);
         }
-        // '$' 已被消费，现在读取 Bulk String 的剩余部分
-        readBulkStringPayload();
+        int rdbLength = readInteger();
+        if (rdbLength > 0) {
+            long bytesToSkip = rdbLength;
+            while (bytesToSkip > 0) {
+                long skipped = is.skip(bytesToSkip);
+                if (skipped <= 0) {
+                    // 如果 skip 返回 0 或负数，通过读取一个字节来确保前进
+                    if (is.read() == -1) {
+                        throw new IOException("Unexpected end of stream while skipping RDB file.");
+                    }
+                    bytesToSkip--;
+                } else {
+                    bytesToSkip -= skipped;
+                }
+            }
+        }
     }
 
     public CommandResult readCommandWithCount() throws IOException {
         is.resetCount();
         Object parsed = parseOne();
         if (parsed instanceof List) {
-            // RESP 命令总是以数组形式出现，我们需要将 List<Object> 转换为 List<byte[]>
             List<?> objectList = (List<?>) parsed;
             List<byte[]> commandParts = new ArrayList<>();
             for (Object item : objectList) {
                 if (item instanceof byte[]) {
                     commandParts.add((byte[]) item);
                 } else {
+                    // Redis 命令数组中只应包含 Bulk String
                     throw new IOException("Command array contained non-bulk string element.");
                 }
             }
             return new CommandResult(commandParts, is.getCount());
         }
-        throw new IOException("Expected command to be a RESP Array, but got: " + parsed.getClass().getSimpleName());
+        throw new IOException("Expected command to be a RESP Array, but got: " + (parsed != null ? parsed.getClass().getSimpleName() : "null"));
     }
 
     public List<byte[]> readCommand() throws IOException {
