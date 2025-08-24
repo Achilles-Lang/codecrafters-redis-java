@@ -125,13 +125,9 @@ public class ClientHandler implements Runnable{
                             }
                             Object result=command.execute(args, outputStream);
 
-                            if(result instanceof SubscribeCommand.SubscribeResult){
-                                SubscribeCommand.SubscribeResult subResult=(SubscribeCommand.SubscribeResult) result;
-                                RespEncoder.encode(outputStream, subResult.responsePayload);
+                            if(result==Command.STATE_CHANGE_SUBSCRIBE){
                                 this.isSubscribed=true;
-                            }
-
-                            if (result != BlpopCommand.RESPONSE_ALREADY_SENT) {
+                            }else if (result != BlpopCommand.RESPONSE_ALREADY_SENT) {
                                 if(result instanceof FullResyncResponse){
                                     FullResyncResponse resync=(FullResyncResponse)result;
                                     String fullResyncLine="+FULLRESYNC "+resync.getMasterReplid()+" "+resync.getMasterReplOffset()+"\r\n";
