@@ -1,8 +1,8 @@
 package Service;
 
 import Commands.Command;
+import Commands.CommandContext;
 import Commands.CommandHandler;
-import Storage.DataStore;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -55,7 +55,6 @@ public class MasterConnectionHandler implements Runnable {
 
             System.out.println("Handshake successful. Listening for propagated commands.");
 
-            // --- 关键修复: 重写命令处理循环逻辑 ---
             while (!masterSocket.isClosed()) {
                 CommandResult result = parser.readCommandWithCount();
                 if (result == null || result.parts == null || result.parts.isEmpty()) {
@@ -65,38 +64,29 @@ public class MasterConnectionHandler implements Runnable {
                 List<byte[]> commandParts = result.parts;
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toUpperCase();
 
-                boolean isGetAck = "REPLCONF".equals(commandName) && commandParts.size() > 1
-                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8));
+                if ("REPLCONF".equals(commandName) && commandParts.size() > 1
+                        && "GETACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
 
-                if (isGetAck) {
-                    // 如果是 GETACK, 立即用 *当前* 的偏移量回复
                     System.out.println("Received REPLCONF GETACK *. Responding with ACK.");
                     sendCommand(os, "REPLCONF", "ACK", String.valueOf(bytesProcessed));
+                    continue;
                 }
 
-                // **无论是什么命令，都必须将它的字节数累加到偏移量中**
                 bytesProcessed += result.bytesRead;
 
-                // 如果命令不是 GETACK，则需要执行它 (PING, SET 等)
-                if (!isGetAck) {
-                    System.out.println("Received propagated command: " + commandName);
-                    List<byte[]> args = commandParts.subList(1, commandParts.size());
-                    Command command = this.commandHandler.getCommand(commandName);
+                System.out.println("Received propagated command: " + commandName);
+                List<byte[]> args = commandParts.subList(1, commandParts.size());
+                Command command = commandHandler.getCommand(commandName.toLowerCase());
 
-                    if (command != null) {
-                        command.execute(args, null);
-                    } else {
-                        System.out.println("Unknown propagated command: " + commandName);
-                    }
-                }
+                if (command != null) {
+                    // **关键修复**: 在这里创建 CommandContext
+                    // 对于副本来说，它永远不处于“订阅模式”，所以 isClientSubscribed 总是 false
+                    CommandContext context = new CommandContext(os, false);
 
-                if ("REPLCONF".equals(commandName) && commandParts.size() > 1
-                        && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
-
-                    long offset = Long.parseLong(new String(commandParts.get(2), StandardCharsets.UTF_8));
-                    DataStore.getInstance().processAck(offset);
-                    // ACK 命令不需要增加偏移量，也不需要执行，直接继续
-                    continue;
+                    // **关键修复**: 将 context 传递给 execute 方法
+                    command.execute(args, context);
+                } else {
+                    System.out.println("Unknown propagated command: " + commandName);
                 }
             }
         } catch (IOException e) {
