@@ -2,6 +2,7 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
+import Commands.Impl.SubscribeCommand;
 import Commands.WriteCommand;
 import Commands.Impl.BlpopCommand;
 import Storage.DataStore;
@@ -26,6 +27,9 @@ public class ClientHandler implements Runnable{
     private final CommandHandler commandHandler;
     private boolean inTransaction = false;
     private final Queue<List<byte[]>> transactionQueue=new LinkedList<>();
+    //用于追踪客户端是否处于订阅模式的状态变量
+    private boolean isSubscribed = false;
+
 
     public ClientHandler(Socket socket, CommandHandler commandHandler) {
         this.clientSocket = socket;
@@ -44,6 +48,15 @@ public class ClientHandler implements Runnable{
             Protocol protocol=new Protocol(socket.getInputStream());
 
             while (!socket.isClosed()) {
+                if(isSubscribed){
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                    continue;
+                }
+
                 List<byte[]> commandParts= protocol.readCommand();
                 if(commandParts == null || commandParts.isEmpty()){
                     break;
@@ -111,6 +124,10 @@ public class ClientHandler implements Runnable{
                                 DataStore.getInstance().propagateCommand(commandParts);
                             }
                             Object result=command.execute(args, outputStream);
+                            RespEncoder.encode(outputStream, result);
+                            if(command instanceof SubscribeCommand){
+                                this.isSubscribed=true;
+                            }
 
                             if (result != BlpopCommand.RESPONSE_ALREADY_SENT) {
                                 if(result instanceof FullResyncResponse){

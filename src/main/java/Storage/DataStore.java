@@ -30,7 +30,10 @@ public class DataStore {
     private final Queue<AckCallback> ackCallbacks = new ConcurrentLinkedQueue<>();
 
     private String rdbDir;
+
     private String rdbFileName;
+    // 用于存储频道和订阅者列表的 Map
+    private final Map<String,List<OutputStream>> subscriptions=new ConcurrentHashMap<>();
 
     public void setRdbConfig(String dir,String fileName){
         this.rdbDir=dir;
@@ -668,5 +671,16 @@ public class DataStore {
 
     public synchronized List<String> getAllKeys(){
         return new ArrayList<>(map.keySet());
+    }
+
+    /**
+     * **新增**: 将一个客户端（由其 OutputStream 代表）订阅到一个频道。
+     * @param channel 要订阅的频道
+     * @param clientStream 订阅的客户端的输出流
+     */
+    public synchronized void subscribe(String channel, OutputStream clientStream) {
+        // computeIfAbsent 是一个线程安全的操作，
+        // 如果 channel 不存在，它会自动创建一个新的 CopyOnWriteArrayList
+        subscriptions.computeIfAbsent(channel, k -> new CopyOnWriteArrayList<>()).add(clientStream);
     }
 }
