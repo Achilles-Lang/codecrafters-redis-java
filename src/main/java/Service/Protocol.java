@@ -42,46 +42,51 @@ public class Protocol {
     }
 
     public void readRdbFile() throws IOException {
-        // RDB 文件本身就是一个 Bulk String
-        readBulkString();
+        int firstByte = is.read();
+        if (firstByte != '$') {
+            throw new IOException("Expected RDB file to start with '$', but got: " + (char)firstByte);
+        }
+        // '$' 已被消费，现在读取 Bulk String 的剩余部分
+        readBulkStringPayload();
     }
 
     public CommandResult readCommandWithCount() throws IOException {
         is.resetCount();
         Object parsed = parseOne();
         if (parsed instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<byte[]> commandParts = (List<byte[]>) parsed;
+            // RESP 命令总是以数组形式出现，我们需要将 List<Object> 转换为 List<byte[]>
+            List<?> objectList = (List<?>) parsed;
+            List<byte[]> commandParts = new ArrayList<>();
+            for (Object item : objectList) {
+                if (item instanceof byte[]) {
+                    commandParts.add((byte[]) item);
+                } else {
+                    throw new IOException("Command array contained non-bulk string element.");
+                }
+            }
             return new CommandResult(commandParts, is.getCount());
         }
-        throw new IOException("Expected command to be a RESP Array.");
+        throw new IOException("Expected command to be a RESP Array, but got: " + parsed.getClass().getSimpleName());
     }
 
     public List<byte[]> readCommand() throws IOException {
-        Object parsed = parseOne();
-        if (parsed instanceof List) {
-            return (List<byte[]>) parsed;
-        }
-        throw new IOException("Expected command to be a RESP Array.");
+        CommandResult result = readCommandWithCount();
+        return result.parts;
     }
 
-    Object parseOne() throws IOException {
+    public Object parseOne() throws IOException {
         int firstByte = is.read();
         if (firstByte == -1) { return null; }
         char type = (char) firstByte;
         switch (type) {
-            case '+': return readSimpleString();
-            case '$': return readBulkString();
-            case '*': return readArray();
+            case '+': return readLine();
+            case '$': return readBulkStringPayload();
+            case '*': return readArrayPayload();
             default: throw new IOException("Unsupported RESP type: " + type);
         }
     }
 
-    private String readSimpleString() throws IOException {
-        return readLine();
-    }
-
-    private List<Object> readArray() throws IOException {
+    private List<Object> readArrayPayload() throws IOException {
         int arrayLength = readInteger();
         if (arrayLength == -1) { return null; }
         List<Object> result = new ArrayList<>(arrayLength);
@@ -91,7 +96,7 @@ public class Protocol {
         return result;
     }
 
-    private byte[] readBulkString() throws IOException {
+    private byte[] readBulkStringPayload() throws IOException {
         int stringLength = readInteger();
         if (stringLength == -1) { return null; }
 
