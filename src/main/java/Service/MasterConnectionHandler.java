@@ -34,24 +34,22 @@ public class MasterConnectionHandler implements Runnable {
             Protocol parser = new Protocol(is);
 
             // --- 握手流程 ---
-            System.out.println("Sending PING to master...");
             sendCommand(os, "PING");
-            parser.readSimpleString(); // Consume PONG
+            parser.readSimpleString();
 
-            System.out.println("Sending REPLCONF listening-port...");
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            parser.readSimpleString(); // Consume OK
+            parser.readSimpleString();
 
-            System.out.println("Sending REPLCONF capa psync2...");
             sendCommand(os, "REPLCONF", "capa", "psync2");
-            parser.readSimpleString(); // Consume OK
+            parser.readSimpleString();
 
-            System.out.println("Sending PSYNC...");
             sendCommand(os, "PSYNC", "?", "-1");
-            parser.readSimpleString(); // Consume +FULLRESYNC...
+            parser.readSimpleString(); // 消费 +FULLRESYNC...
 
             System.out.println("Waiting for RDB file...");
-            parser.readRdbFile();
+            // **关键修复**: 接收 RDB 文件的大小并累加到偏移量中
+            long rdbFileBytes = parser.readRdbFile();
+            bytesProcessed += rdbFileBytes;
 
             System.out.println("Handshake successful. Listening for propagated commands.");
 

@@ -41,7 +41,12 @@ public class Protocol {
         this.is = new CountingInputStream(is);
     }
 
-    public void readRdbFile() throws IOException {
+    /**
+     * **关键修复**: 这个方法现在返回 RDB 文件传输所占的总字节数。
+     */
+    public long readRdbFile() throws IOException {
+        is.resetCount(); // 开始计数前重置计数器
+
         int firstByte = is.read();
         if (firstByte != '$') {
             throw new IOException("Expected RDB file to start with '$', but got: " + (char)firstByte);
@@ -61,6 +66,9 @@ public class Protocol {
                 }
             }
         }
+
+        // 返回从 '$' 开始到 RDB 数据结束所读取的总字节数
+        return is.getCount();
     }
 
     public CommandResult readCommandWithCount() throws IOException {
