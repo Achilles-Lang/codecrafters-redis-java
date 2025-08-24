@@ -34,21 +34,17 @@ public class MasterConnectionHandler implements Runnable {
             Protocol parser = new Protocol(is);
 
             // --- 握手流程 ---
-            System.out.println("Sending PING to master...");
             sendCommand(os, "PING");
-            parser.readSimpleString();
+            parser.parseOne(); // Consume PONG
 
-            System.out.println("Sending REPLCONF listening-port...");
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
-            parser.readSimpleString();
+            parser.parseOne(); // Consume OK
 
-            System.out.println("Sending REPLCONF capa psync2...");
             sendCommand(os, "REPLCONF", "capa", "psync2");
-            parser.readSimpleString();
+            parser.parseOne(); // Consume OK
 
-            System.out.println("Sending PSYNC...");
             sendCommand(os, "PSYNC", "?", "-1");
-            parser.readSimpleString();
+            parser.parseOne(); // Consume +FULLRESYNC...
 
             System.out.println("Waiting for RDB file...");
             parser.readRdbFile();
@@ -79,11 +75,7 @@ public class MasterConnectionHandler implements Runnable {
                 Command command = commandHandler.getCommand(commandName.toLowerCase());
 
                 if (command != null) {
-                    // **关键修复**: 在这里创建 CommandContext
-                    // 对于副本来说，它永远不处于“订阅模式”，所以 isClientSubscribed 总是 false
                     CommandContext context = new CommandContext(os, false);
-
-                    // **关键修复**: 将 context 传递给 execute 方法
                     command.execute(args, context);
                 } else {
                     System.out.println("Unknown propagated command: " + commandName);

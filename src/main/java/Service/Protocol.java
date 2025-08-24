@@ -9,7 +9,6 @@ import java.util.List;
 class CommandResult {
     public final List<byte[]> parts;
     public final long bytesRead;
-
     public CommandResult(List<byte[]> parts, long bytesRead) {
         this.parts = parts;
         this.bytesRead = bytesRead;
@@ -43,80 +42,56 @@ public class Protocol {
     }
 
     public void readRdbFile() throws IOException {
-        int firstByte = is.read();
-        if (firstByte != '$') {
-            throw new IOException("Expected '$' for RDB file bulk string, but got: " + (char)firstByte);
-        }
-        int rdbLength = readInteger();
-        if (rdbLength > 0) {
-            long bytesSkipped = 0;
-            while (bytesSkipped < rdbLength) {
-                long skipped = is.skip(rdbLength - bytesSkipped);
-                if (skipped <= 0) {
-                    if (is.read() == -1) {
-                        throw new IOException("Unexpected end of stream while skipping RDB file.");
-                    }
-                    bytesSkipped++;
-                } else {
-                    bytesSkipped += skipped;
-                }
-            }
-        }
+        // RDB 文件本身就是一个 Bulk String
+        readBulkString();
     }
 
     public CommandResult readCommandWithCount() throws IOException {
         is.resetCount();
-        List<byte[]> commandParts = readCommandInternal();
-        if (commandParts == null) { return null; }
-        return new CommandResult(commandParts, is.getCount());
+        Object parsed = parseOne();
+        if (parsed instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<byte[]> commandParts = (List<byte[]>) parsed;
+            return new CommandResult(commandParts, is.getCount());
+        }
+        throw new IOException("Expected command to be a RESP Array.");
     }
 
     public List<byte[]> readCommand() throws IOException {
-        return readCommandInternal();
+        Object parsed = parseOne();
+        if (parsed instanceof List) {
+            return (List<byte[]>) parsed;
+        }
+        throw new IOException("Expected command to be a RESP Array.");
     }
 
-    private List<byte[]> readCommandInternal() throws IOException {
+    Object parseOne() throws IOException {
         int firstByte = is.read();
         if (firstByte == -1) { return null; }
         char type = (char) firstByte;
-
         switch (type) {
-            case '*':
-                return readArray();
-            case '$':
-                // 虽然顶层命令通常是数组，但为了健壮性，我们也处理单个 Bulk String
-                List<byte[]> singleCommand = new ArrayList<>();
-                singleCommand.add(readBulkString(false)); // 传入 false 因为 '$' 已被读取
-                return singleCommand;
-            default:
-                throw new IOException("Unsupported RESP type as top-level command: " + type);
+            case '+': return readSimpleString();
+            case '$': return readBulkString();
+            case '*': return readArray();
+            default: throw new IOException("Unsupported RESP type: " + type);
         }
     }
 
-    public String readSimpleString() throws IOException {
+    private String readSimpleString() throws IOException {
         return readLine();
     }
 
-    private List<byte[]> readArray() throws IOException {
-        // **关键修复**: 移除了这里多余的 is.read() 调用。
-        // 调用此方法的 readCommandInternal() 已经读取了 '*'。
+    private List<Object> readArray() throws IOException {
         int arrayLength = readInteger();
         if (arrayLength == -1) { return null; }
-        List<byte[]> result = new ArrayList<>(arrayLength);
+        List<Object> result = new ArrayList<>(arrayLength);
         for (int i = 0; i < arrayLength; i++) {
-            result.add(readBulkString(true)); // 传入 true 因为需要读取 '$'
+            result.add(parseOne());
         }
         return result;
     }
 
-    private byte[] readBulkString(boolean readPrefix) throws IOException {
-        if (readPrefix) {
-            int firstByte = is.read();
-            if (firstByte != '$') {
-                throw new IOException("Expected Bulk String to start with '$', but got " + (char) firstByte);
-            }
-        }
-
+    private byte[] readBulkString() throws IOException {
         int stringLength = readInteger();
         if (stringLength == -1) { return null; }
 
