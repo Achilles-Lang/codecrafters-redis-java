@@ -3,6 +3,8 @@ package Commands.Impl;
 import Commands.Command;
 
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -13,20 +15,34 @@ import java.util.List;
  * PING <message> -> 返回 <message> (Bulk String)
  */
 public class PingCommand implements Command {
+    //存储客户端的状态
+    private boolean isClientSubscribed=false;
+
+    public void setClientSubscribed(boolean isClientSubscribed){
+        this.isClientSubscribed=isClientSubscribed;
+    }
+
     @Override
     public Object execute(List<byte[]> args, OutputStream os) {
-        if(args.isEmpty()){
-            //情况1：命令是PING 没有参数，返回PONG
-            //ClientHandler的sendResponse方法会把他编码成“+PONG\r\n”
-            return "PONG";
-        } else if (args.size()==1) {
-            //情况2：命令是PING <message> 返回参数本身（一个字节数组）
-            // ClientHandler 的 sendResponse 方法会把它编码成 Bulk String
-            return args.get(0);
-        }else {
-            //情况3:参数数量错误，返回一个异常
-            // 返回一个异常，ClientHandler 会把它编码成错误信息
-            return new Exception("wrong number of arguments for 'ping' command");
+        if(this.isClientSubscribed){
+            //订阅模式下
+            List<byte[]> response=new ArrayList<>();
+            response.add("pong".getBytes(StandardCharsets.UTF_8));
+
+            if(args.isEmpty()){
+                //如果PING带有参数，则返回该参数，否则返回空字符串
+                response.add("".getBytes(StandardCharsets.UTF_8));
+            } else {
+                response.add(args.get(0));
+            }
+            return response;
+        } else {
+            //非订阅模式下
+            if(args.isEmpty()){
+                return "PONG".getBytes(StandardCharsets.UTF_8);
+            } else {
+                return args.get(0);
+            }
         }
     }
 }

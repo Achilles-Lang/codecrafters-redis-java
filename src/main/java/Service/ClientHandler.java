@@ -2,6 +2,7 @@ package Service;
 
 import Commands.Command;
 import Commands.CommandHandler;
+import Commands.Impl.PingCommand;
 import Commands.Impl.SubscribeCommand;
 import Commands.WriteCommand;
 import Commands.Impl.BlpopCommand;
@@ -121,6 +122,9 @@ public class ClientHandler implements Runnable{
                         if (command == null) {
                             RespEncoder.encode(outputStream, new Exception("unknown command '" + commandName + "'"));
                         } else {
+                            if(command instanceof PingCommand){
+                                ((PingCommand) command).setClientSubscribed(this.isSubscribed);
+                            }
                             if (command instanceof WriteCommand) {
                                 DataStore.getInstance().propagateCommand(commandParts);
                             }
