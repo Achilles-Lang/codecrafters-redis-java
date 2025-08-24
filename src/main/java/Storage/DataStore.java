@@ -34,6 +34,9 @@ public class DataStore {
     private String rdbFileName;
     // 用于存储频道和订阅者列表的 Map
     private final Map<String,List<OutputStream>> subscriptions=new ConcurrentHashMap<>();
+    // 用于追踪每个客户端订阅了那些频道
+    private final Map<String, Set<String>> clientSubscriptions = new ConcurrentHashMap<>();
+
 
     public void setRdbConfig(String dir,String fileName){
         this.rdbDir=dir;
@@ -679,8 +682,41 @@ public class DataStore {
      * @param clientStream 订阅的客户端的输出流
      */
     public synchronized void subscribe(String channel, OutputStream clientStream) {
-        // computeIfAbsent 是一个线程安全的操作，
-        // 如果 channel 不存在，它会自动创建一个新的 CopyOnWriteArrayList
+        // 1. 记录 "频道 -> 客户端列表" 的关系
         subscriptions.computeIfAbsent(channel, k -> new CopyOnWriteArrayList<>()).add(clientStream);
+
+        // 2. 记录 "客户端 -> 频道集合" 的关系
+        clientSubscriptions.computeIfAbsent(clientStream.toString(), k -> ConcurrentHashMap.newKeySet()).add(channel);
+    }
+
+    /**
+     * **新增**: 获取指定客户端的总订阅数。
+     * @param clientStream 客户端的输出流
+     * @return 该客户端当前订阅的频道总数
+     */
+    public synchronized int getSubscriptionCountForClient(OutputStream clientStream) {
+        Set<String> channels = clientSubscriptions.get(clientStream);
+        return (channels == null) ? 0 : channels.size();
+    }
+
+    /**
+     * **新增 (推荐)**: 当客户端断开连接时，清理其所有订阅信息。
+     * @param clientStream 断开连接的客户端的输出流
+     */
+    public synchronized void unsubscribeClient(OutputStream clientStream) {
+        // 1. 从 "客户端 -> 频道" 的追踪中移除
+        Set<String> subscribedChannels = clientSubscriptions.remove(clientStream);
+
+        // 2. 如果该客户端确实有订阅
+        if (subscribedChannels != null) {
+            // 3. 遍历它订阅过的所有频道
+            for (String channel : subscribedChannels) {
+                List<OutputStream> subscribers = subscriptions.get(channel);
+                if (subscribers != null) {
+                    // 4. 从每个频道的订阅者列表中移除这个客户端
+                    subscribers.remove(clientStream);
+                }
+            }
+        }
     }
 }

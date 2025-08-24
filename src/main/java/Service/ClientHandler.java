@@ -43,12 +43,13 @@ public class ClientHandler implements Runnable{
     @Override
     public void run( ) {
         //获取该连接的输入和输出流
-        try (Socket socket=this.clientSocket) {
-            OutputStream outputStream = socket.getOutputStream();
-            Protocol protocol=new Protocol(socket.getInputStream());
+        OutputStream outputStream = null;
+        try (Socket socket = this.clientSocket) {
+            outputStream = socket.getOutputStream();
+            Protocol protocol = new Protocol(socket.getInputStream());
 
             while (!socket.isClosed()) {
-                if(isSubscribed){
+                if (isSubscribed) {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
@@ -57,11 +58,11 @@ public class ClientHandler implements Runnable{
                     continue;
                 }
 
-                List<byte[]> commandParts= protocol.readCommand();
-                if(commandParts == null || commandParts.isEmpty()){
+                List<byte[]> commandParts = protocol.readCommand();
+                if (commandParts == null || commandParts.isEmpty()) {
                     break;
                 }
-                String commandName=new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
+                String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
                 if ("REPLCONF".equalsIgnoreCase(commandName) && commandParts.size() > 2
                         && "ACK".equalsIgnoreCase(new String(commandParts.get(1), StandardCharsets.UTF_8))) {
@@ -74,9 +75,9 @@ public class ClientHandler implements Runnable{
                 // **KEY FIX 2**: Convert to lowercase *after* the ACK check
                 String lowerCaseCommandName = commandName.toLowerCase();
 
-                if(inTransaction){
+                if (inTransaction) {
                     //如果在事务中
-                    if("exec".equals(commandName)){
+                    if ("exec".equals(commandName)) {
                         List<Object> results = new LinkedList<>();
                         for (List<byte[]> queuedCommandParts : transactionQueue) {
                             String queuedCommandName = new String(queuedCommandParts.get(0), StandardCharsets.UTF_8);
@@ -84,55 +85,55 @@ public class ClientHandler implements Runnable{
 
                             Command commandToExecute = commandHandler.getCommand(queuedCommandName);
 
-                            if(commandToExecute!=null){
+                            if (commandToExecute != null) {
                                 results.add(commandToExecute.execute(queuedArgs, outputStream));
 
-                            }else{
+                            } else {
                                 results.add(new Exception("unknown command '" + queuedCommandName + "'"));
                             }
                         }
-                        RespEncoder.encode(outputStream,results);
+                        RespEncoder.encode(outputStream, results);
                         transactionQueue.clear();
-                        inTransaction=false;
+                        inTransaction = false;
 
-                    } else if ( "discard".equals(commandName)) {
+                    } else if ("discard".equals(commandName)) {
                         transactionQueue.clear();
-                        inTransaction=false;
-                        RespEncoder.encode(outputStream,"OK");
+                        inTransaction = false;
+                        RespEncoder.encode(outputStream, "OK");
                     } else if ("multi".equals(commandName)) {
                         RespEncoder.encode(outputStream, new Exception("MULTI calls can not be nested"));
-                    }else{
+                    } else {
                         transactionQueue.add(commandParts);
                         RespEncoder.encode(outputStream, "QUEUED");
                     }
-                }else {
-                    if("multi".equals(lowerCaseCommandName)){
-                        inTransaction=true;
+                } else {
+                    if ("multi".equals(lowerCaseCommandName)) {
+                        inTransaction = true;
                         transactionQueue.clear();
                         RespEncoder.encode(outputStream, "OK");
-                    } else if ("exec".equals(lowerCaseCommandName)||"discard".equals(lowerCaseCommandName)) {
+                    } else if ("exec".equals(lowerCaseCommandName) || "discard".equals(lowerCaseCommandName)) {
                         RespEncoder.encode(outputStream, new Exception(lowerCaseCommandName.toUpperCase() + " without MULTI"));
 
                     } else {
-                        List<byte[]> args=commandParts.subList(1, commandParts.size());
-                        Command command=commandHandler.getCommand(lowerCaseCommandName);
+                        List<byte[]> args = commandParts.subList(1, commandParts.size());
+                        Command command = commandHandler.getCommand(lowerCaseCommandName);
 
-                        if(command==null){
+                        if (command == null) {
                             RespEncoder.encode(outputStream, new Exception("unknown command '" + commandName + "'"));
-                        }else{
-                            if(command instanceof WriteCommand){
+                        } else {
+                            if (command instanceof WriteCommand) {
                                 DataStore.getInstance().propagateCommand(commandParts);
                             }
-                            Object result=command.execute(args, outputStream);
+                            Object result = command.execute(args, outputStream);
 
-                            if(result==Command.STATE_CHANGE_SUBSCRIBE){
-                                this.isSubscribed=true;
-                            }else if (result != BlpopCommand.RESPONSE_ALREADY_SENT) {
-                                if(result instanceof FullResyncResponse){
-                                    FullResyncResponse resync=(FullResyncResponse)result;
-                                    String fullResyncLine="+FULLRESYNC "+resync.getMasterReplid()+" "+resync.getMasterReplOffset()+"\r\n";
+                            if (result == Command.STATE_CHANGE_SUBSCRIBE) {
+                                this.isSubscribed = true;
+                            } else if (result != BlpopCommand.RESPONSE_ALREADY_SENT) {
+                                if (result instanceof FullResyncResponse) {
+                                    FullResyncResponse resync = (FullResyncResponse) result;
+                                    String fullResyncLine = "+FULLRESYNC " + resync.getMasterReplid() + " " + resync.getMasterReplOffset() + "\r\n";
                                     outputStream.write(fullResyncLine.getBytes(StandardCharsets.UTF_8));
-                                    byte[] rdbFile=RdbUtil.getEmptyRdbFile();
+                                    byte[] rdbFile = RdbUtil.getEmptyRdbFile();
                                     outputStream.write(("$" + rdbFile.length + "\r\n").getBytes(StandardCharsets.UTF_8));
                                     outputStream.write(rdbFile);
                                 } else {
@@ -146,7 +147,8 @@ public class ClientHandler implements Runnable{
             }
         } catch (IOException e) {
             System.out.println("Connection closed for " + clientSocket.getRemoteSocketAddress() + ": " + e.getMessage());
-        }finally {
+        } finally {
+            DataStore.getInstance().unsubscribeClient(outputStream);
             System.out.println("Client handler thread finished for " + clientSocket.getRemoteSocketAddress());
 
         }
