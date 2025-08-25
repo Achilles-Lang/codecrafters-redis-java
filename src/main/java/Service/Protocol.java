@@ -1,5 +1,4 @@
 // 文件路径: src/main/java/Service/Protocol.java
-
 package Service;
 
 import java.io.ByteArrayOutputStream;
@@ -11,14 +10,23 @@ import java.util.List;
 
 public class Protocol {
     private final InputStream inputStream;
-    private long bytesRead=0L;
+    private long bytesRead = 0L;
 
     public Protocol(InputStream inputStream) {
         this.inputStream = inputStream;
     }
 
+    // 新增：重置计数器的方法
+    public void resetBytesRead() {
+        this.bytesRead = 0;
+    }
+
+    public long getBytesRead() {
+        return this.bytesRead;
+    }
+
     public List<byte[]> readCommand() throws IOException {
-        int firstByte = inputStream.read();
+        int firstByte = readByte(); // 修改：使用封装的方法
         if (firstByte == -1) {
             return null;
         }
@@ -29,14 +37,19 @@ public class Protocol {
     }
 
     public String readSimpleString() throws IOException {
-        if (inputStream.read() == '+') {
+        int firstByte = readByte(); // 修改：使用封装的方法
+        if (firstByte == -1) {
+            return null;
+        }
+        if ((char) firstByte == '+') {
             return readLine();
         }
-        return null;
+        // 如果不是 '+'，则抛出异常或返回 null，具体取决于协议要求
+        throw new IOException("Expected a Simple String ('+').");
     }
 
     public byte[] readRdbFile() throws IOException {
-        int firstByte = inputStream.read();
+        int firstByte = readByte(); // 修改：使用封装的方法
         if (firstByte == -1) {
             return null;
         }
@@ -44,24 +57,13 @@ public class Protocol {
             throw new IOException("Expected a Bulk String for RDB file.");
         }
 
-        // 读取 Bulk String 的长度
         int rdbFileLength = Integer.parseInt(readLine());
         if (rdbFileLength < 0) {
-            // null bulk string
             return null;
         }
 
-        // 根据长度读取 RDB 的二进制数据，不读取任何其他字节
         byte[] rdbData = new byte[rdbFileLength];
-        int bytesRead = 0;
-        while (bytesRead < rdbFileLength) {
-            int read = inputStream.read(rdbData, bytesRead, rdbFileLength - bytesRead);
-            if (read == -1) {
-                throw new IOException("Unexpected end of stream while reading RDB file.");
-            }
-            bytesRead += read;
-        }
-
+        readFully(rdbData); // 修改：使用封装的方法
         return rdbData;
     }
 
@@ -72,11 +74,11 @@ public class Protocol {
         }
         List<byte[]> commandParts = new ArrayList<>(arraySize);
         for (int i = 0; i < arraySize; i++) {
-            if (inputStream.read() == '$') {
-                commandParts.add(parseBulkString());
-            } else {
+            int firstByte = readByte(); // 修改：使用封装的方法
+            if (firstByte != '$') {
                 throw new IOException("Unsupported element type in Array. Expected Bulk String ('$').");
             }
+            commandParts.add(parseBulkString());
         }
         return commandParts;
     }
@@ -87,19 +89,11 @@ public class Protocol {
             return null;
         }
         byte[] data = new byte[stringLength];
-        int bytesRead = 0;
-        while (bytesRead < stringLength) {
-            int read = inputStream.read(data, bytesRead, stringLength - bytesRead);
-            if (read == -1) {
-                throw new IOException("Unexpected end of stream while reading Bulk String data.");
-            }
-            bytesRead += read;
-        }
+        readFully(data); // 修改：使用封装的方法
 
-        int cr=inputStream.read();
-        int lf=inputStream.read();
-        if(cr!='\r' || lf!='\n'){
-            throw new IOException("Expected CRLF after Bulk String data. Got: " + cr + ", " + lf);
+        // 读取并验证末尾的 CRLF
+        if (readByte() != '\r' || readByte() != '\n') {
+            throw new IOException("Expected CRLF after Bulk String data.");
         }
         return data;
     }
@@ -107,19 +101,38 @@ public class Protocol {
     private String readLine() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         int b;
-        while ((b = inputStream.read()) != '\r') {
+        while ((b = readByte()) != '\r') { // 修改：使用封装的方法
             if (b == -1) {
                 throw new IOException("Unexpected end of stream.");
             }
             baos.write(b);
-            bytesRead++;
         }
-        bytesRead++;
-        if (inputStream.read() != '\n') {
-            bytesRead++;
+        if (readByte() != '\n') { // 修改：使用封装的方法
             throw new IOException("Expected LF after CR.");
         }
-        bytesRead++;
         return baos.toString(StandardCharsets.UTF_8);
+    }
+
+    // 新增：封装的单字节读取方法，用于计数
+    private int readByte() throws IOException {
+        int b = inputStream.read();
+        if (b != -1) {
+            bytesRead++;
+        }
+        return b;
+    }
+
+    // 新增：封装的多字节读取方法，用于计数
+    private void readFully(byte[] buffer) throws IOException {
+        int bytesToRead = buffer.length;
+        int totalBytesRead = 0;
+        while (totalBytesRead < bytesToRead) {
+            int read = inputStream.read(buffer, totalBytesRead, bytesToRead - totalBytesRead);
+            if (read == -1) {
+                throw new IOException("Unexpected end of stream.");
+            }
+            totalBytesRead += read;
+            this.bytesRead += read;
+        }
     }
 }

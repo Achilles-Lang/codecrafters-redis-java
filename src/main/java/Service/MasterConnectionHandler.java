@@ -21,7 +21,6 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-    private long processedBytes = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -44,14 +43,12 @@ public class MasterConnectionHandler implements Runnable {
                 System.out.println("Error: Did not receive PONG from master.");
                 return;
             }
-            processedBytes+=6;
 
             // --- 阶段 2: REPLCONF ---
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
             parser.readSimpleString();
             sendCommand(os, "REPLCONF", "capa", "psync2");
             parser.readSimpleString();
-            processedBytes+=6;
 
             // --- 阶段 3: PSYNC ---
             sendCommand(os, "PSYNC", "?", "-1");
@@ -60,13 +57,13 @@ public class MasterConnectionHandler implements Runnable {
                 System.out.println("Error: Did not receive FULLRESYNC from master.");
                 return;
             }
-            processedBytes+=psyncResponse.length()+2;
 
             // 读取 RDB 文件
             byte[] rdbData=parser.readRdbFile();
-            processedBytes += ("$" + rdbData.length + "\r\n").getBytes(StandardCharsets.UTF_8).length;
-            processedBytes += rdbData.length;
             System.out.println("Handshake successful. Listening for propagated commands.");
+
+            parser.resetBytesRead();
+            long processedBytes=0;
 
             // --- 命令处理循环 ---
             while (!masterSocket.isClosed()) {
@@ -105,14 +102,13 @@ public class MasterConnectionHandler implements Runnable {
 
 
                 } else {
-
-
                     List<byte[]> args = commandParts.subList(1, commandParts.size());
                     Command command = this.commandHandler.getCommand(commandName);
                     if (command != null) {
                         command.execute(args, null);
                     }
                 }
+                processedBytes =parser.getBytesRead();
 
             }
 
