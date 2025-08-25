@@ -65,9 +65,13 @@ public class MasterConnectionHandler implements Runnable {
                 if (commandParts == null || commandParts.isEmpty()) {
                     break;
                 }
+                System.out.println("Received command: " + formatCommand(commandParts));
+
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
                 if(commandName.equals("replconf")){
+                    System.out.println("Command is REPLCONF, checking subcommands.");
+
                     if (commandParts.size() == 3 && new String(commandParts.get(1)).equalsIgnoreCase("GETACK") && new String(commandParts.get(2)).equals("*")) {
                         long offset=0;
                         String response = "*3\r\n" +
@@ -78,8 +82,17 @@ public class MasterConnectionHandler implements Runnable {
 
                         os.write(response.getBytes(StandardCharsets.UTF_8));
                         System.out.println("Sent REPLCONF ACK " + offset);
+                    }else{
+                        System.out.println("REPLCONF command but not GETACK, size: " + commandParts.size());
+                        System.out.println("Arg 1: " + new String(commandParts.get(1), StandardCharsets.UTF_8));
+                        if(commandParts.size()>2){
+                            System.out.println("Arg 2: " + new String(commandParts.get(2), StandardCharsets.UTF_8));
+
+                        }
                     }
                 } else {
+
+
                     List<byte[]> args = commandParts.subList(1, commandParts.size());
                     Command command = this.commandHandler.getCommand(commandName);
                     if (command != null) {
@@ -100,5 +113,10 @@ public class MasterConnectionHandler implements Runnable {
         }
         os.write(cmd.toString().getBytes(StandardCharsets.UTF_8));
         os.flush();
+    }
+    private String formatCommand(List<byte[]> parts) {
+        return parts.stream()
+                .map(part -> new String(part, StandardCharsets.UTF_8))
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
     }
 }
