@@ -39,10 +39,29 @@ public class Protocol {
         if (firstByte == -1) {
             return null;
         }
-        if ((char) firstByte == '$') {
-            return parseBulkString();
+        if ((char) firstByte != '$') {
+            throw new IOException("Expected a Bulk String for RDB file.");
         }
-        throw new IOException("Expected a Bulk String for RDB file.");
+
+        // 读取 Bulk String 的长度
+        int rdbFileLength = Integer.parseInt(readLine());
+        if (rdbFileLength < 0) {
+            // null bulk string
+            return null;
+        }
+
+        // 根据长度读取 RDB 的二进制数据，不读取任何其他字节
+        byte[] rdbData = new byte[rdbFileLength];
+        int bytesRead = 0;
+        while (bytesRead < rdbFileLength) {
+            int read = inputStream.read(rdbData, bytesRead, rdbFileLength - bytesRead);
+            if (read == -1) {
+                throw new IOException("Unexpected end of stream while reading RDB file.");
+            }
+            bytesRead += read;
+        }
+
+        return rdbData;
     }
 
     private List<byte[]> parseArray() throws IOException {
