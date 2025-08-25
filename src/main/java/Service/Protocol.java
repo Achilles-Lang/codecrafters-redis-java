@@ -18,8 +18,12 @@ public class Protocol {
 
     public List<byte[]> readCommand() throws IOException {
         int firstByte = inputStream.read();
-        if (firstByte == -1) return null;
-        if ((char) firstByte == '*') return parseArray();
+        if (firstByte == -1) {
+            return null;
+        }
+        if ((char) firstByte == '*') {
+            return parseArray();
+        }
         throw new IOException("Unsupported command format. Expected an Array ('*').");
     }
 
@@ -71,8 +75,11 @@ public class Protocol {
             }
             bytesRead += read;
         }
-        if (inputStream.read() != '\r' || inputStream.read() != '\n') {
-            throw new IOException("Expected CRLF after Bulk String data.");
+
+        int cr=inputStream.read();
+        int lf=inputStream.read();
+        if(cr!='\r' || lf!='\n'){
+            throw new IOException("Expected CRLF after Bulk String data. Got: " + cr + ", " + lf);
         }
         return data;
     }
