@@ -284,7 +284,6 @@ public class DataStore {
         // 为了简化，我们只处理第一个 key 的等待。一个完整的实现需要为所有 key 创建等待逻辑。
 
         // 3. 将监视器加入对应 key 的等待队列
-
         // 4. 在独立的监视器上等待
         synchronized (monitor) {
             long waitTime = 0;
