@@ -44,6 +44,14 @@ public class ClientHandler implements Runnable{
         return clientSocket;
     }
 
+    public boolean isSubscribed(){
+        return isSubscribed;
+    }
+
+    public void setSubscribed(boolean subscribed) {
+        isSubscribed = subscribed;
+    }
+
     @Override
     public void run( ) {
         //获取该连接的输入和输出流
