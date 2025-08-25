@@ -68,7 +68,7 @@ public class MasterConnectionHandler implements Runnable {
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
                 if(commandName.equals("replconf")){
-                    if(commandParts.size()==2&& new String(commandParts.get(1)).equals("GETACK")){
+                    if (commandParts.size() == 3 && new String(commandParts.get(1)).equalsIgnoreCase("GETACK") && new String(commandParts.get(2)).equals("*")) {
                         long offset=0;
                         String response = "*3\r\n" +
                                 "$8\r\nREPLCONF\r\n" +
