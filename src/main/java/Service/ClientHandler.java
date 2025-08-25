@@ -192,8 +192,14 @@ public class ClientHandler implements Runnable{
         } catch (IOException e) {
             System.out.println("Connection closed for " + clientSocket.getRemoteSocketAddress() + ": " + e.getMessage());
         } finally {
-            DataStore.getInstance().unsubscribeClient(outputStream);
-            System.out.println("Client handler thread finished for " + clientSocket.getRemoteSocketAddress());
+            try {
+                // 这是最关键的清理步骤！
+                DataStore.getInstance().unsubscribeClient(clientSocket.getOutputStream());
+                clientSocket.close();
+                System.out.println("Client disconnected and subscriptions cleaned up.");
+            } catch (IOException e) {
+                // 忽略关闭时的异常
+            }
 
         }
 

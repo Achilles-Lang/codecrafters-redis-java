@@ -26,17 +26,17 @@ public class PublishCommand implements Command {
         }
 
         String channelName = new String(args.get(0), StandardCharsets.UTF_8);
-        // String message = new String(args.get(1), StandardCharsets.UTF_8); // 消息内容本阶段用不到
 
-        // 1. 获取 DataStore 单例
+        byte[] message = args.get(1);
+
         DataStore dataStore = DataStore.getInstance();
 
         // 2. 调用我们刚刚新增的方法获取订阅者数量
-        int subscriberCount = dataStore.getSubscriberCount(channelName);
+        int deliverCount = dataStore.publishMessage(channelName,message);
 
 
         // PUBLISH 命令本身不改变客户端的订阅状态，也不需要特殊的返回值
         // 返回 null 表示正常执行完毕
-        return subscriberCount;
+        return deliverCount;
     }
 }

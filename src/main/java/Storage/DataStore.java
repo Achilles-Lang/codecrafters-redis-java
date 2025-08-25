@@ -752,6 +752,9 @@ public class DataStore {
                 if (subscribers != null) {
                     // 4. 从每个频道的订阅者列表中移除这个客户端
                     subscribers.remove(clientStream);
+                    if(subscribers.isEmpty()){
+                        subscriptions.remove(channel);
+                    }
                 }
             }
         }
@@ -767,5 +770,59 @@ public class DataStore {
             return 0;
         }
         return subscribers.size();
+    }
+    /**
+     * 向指定频道发布消息。
+     * @param channel 频道名称
+     * @param message 要发布的消息
+     * @return 收到消息的订阅者数量
+     */
+    public synchronized int publishMessage(String channel, byte[] message) {
+        List<OutputStream> subscribers = subscriptions.get(channel);
+        if (subscribers == null || subscribers.isEmpty()) {
+            return 0; // 没有订阅者
+        }
+
+        // 构造要发送给订阅者的 RESP 消息体
+        // 格式: ["message", channel, a_message]
+        byte[] respMessage = buildMessagePayload(channel.getBytes(StandardCharsets.UTF_8), message);
+
+        int deliveredCount = 0;
+        // 使用迭代器遍历，可以安全地移除断开连接的客户端
+        Iterator<OutputStream> iterator = subscribers.iterator();
+        while (iterator.hasNext()) {
+            OutputStream subscriberStream = iterator.next();
+            try {
+                subscriberStream.write(respMessage);
+                subscriberStream.flush();
+                deliveredCount++;
+            } catch (IOException e) {
+                // 如果写入失败，说明客户端连接已断开
+                System.out.println("Subscriber connection lost. Removing...");
+                // 从订阅列表中移除，并清理该客户端的所有订阅信息
+                iterator.remove();
+                unsubscribeClient(subscriberStream); // 调用我们之前写好的清理方法
+            }
+        }
+        return deliveredCount;
+    }
+    /**
+     * 辅助方法：构建要发送给订阅者的 RESP 格式数据。
+     * 格式: *3\r\n$7\r\nmessage\r\n$[channel_len]\r\n[channel]\r\n$[msg_len]\r\n[msg]\r\n
+     */
+    private byte[] buildMessagePayload(byte[] channel, byte[] message) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            baos.write("*3\r\n".getBytes(StandardCharsets.UTF_8));
+            baos.write("$7\r\nmessage\r\n".getBytes(StandardCharsets.UTF_8));
+            baos.write(("$" + channel.length + "\r\n").getBytes(StandardCharsets.UTF_8));
+            baos.write(channel);
+            baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            baos.write(("$" + message.length + "\r\n").getBytes(StandardCharsets.UTF_8));
+            baos.write(message);
+            baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException(e); // 内存操作，基本不会发生
+        }
     }
 }
