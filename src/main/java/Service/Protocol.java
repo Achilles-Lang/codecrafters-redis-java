@@ -11,6 +11,7 @@ import java.util.List;
 
 public class Protocol {
     private final InputStream inputStream;
+    private long bytesRead=0L;
 
     public Protocol(InputStream inputStream) {
         this.inputStream = inputStream;
@@ -111,10 +112,14 @@ public class Protocol {
                 throw new IOException("Unexpected end of stream.");
             }
             baos.write(b);
+            bytesRead++;
         }
+        bytesRead++;
         if (inputStream.read() != '\n') {
+            bytesRead++;
             throw new IOException("Expected LF after CR.");
         }
+        bytesRead++;
         return baos.toString(StandardCharsets.UTF_8);
     }
 }

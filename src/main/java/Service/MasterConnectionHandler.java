@@ -11,6 +11,11 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+/**
+ * @author Achilles
+ * @date 2023/10/07
+ * 主从复制连接处理类
+ */
 public class MasterConnectionHandler implements Runnable {
     private final String masterHost;
     private final int masterPort;
@@ -39,12 +44,14 @@ public class MasterConnectionHandler implements Runnable {
                 System.out.println("Error: Did not receive PONG from master.");
                 return;
             }
+            processedBytes+=6;
 
             // --- 阶段 2: REPLCONF ---
             sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
             parser.readSimpleString();
             sendCommand(os, "REPLCONF", "capa", "psync2");
             parser.readSimpleString();
+            processedBytes+=6;
 
             // --- 阶段 3: PSYNC ---
             sendCommand(os, "PSYNC", "?", "-1");
@@ -53,10 +60,12 @@ public class MasterConnectionHandler implements Runnable {
                 System.out.println("Error: Did not receive FULLRESYNC from master.");
                 return;
             }
+            processedBytes+=psyncResponse.length()+2;
 
             // 读取 RDB 文件
-            parser.readRdbFile();
-
+            byte[] rdbData=parser.readRdbFile();
+            processedBytes += ("$" + rdbData.length + "\r\n").getBytes(StandardCharsets.UTF_8).length;
+            processedBytes += rdbData.length;
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             // --- 命令处理循环 ---
@@ -65,6 +74,7 @@ public class MasterConnectionHandler implements Runnable {
                 if (commandParts == null || commandParts.isEmpty()) {
                     break;
                 }
+                long commandLength=0;
                 System.out.println("Received command: " + formatCommand(commandParts));
 
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
@@ -73,7 +83,7 @@ public class MasterConnectionHandler implements Runnable {
                     System.out.println("Command is REPLCONF, checking subcommands.");
 
                     if (commandParts.size() == 3 && new String(commandParts.get(1)).equalsIgnoreCase("GETACK") && new String(commandParts.get(2)).equals("*")) {
-                        long offset=0;
+                        long offset=processedBytes;
                         String response = "*3\r\n" +
                                 "$8\r\nREPLCONF\r\n" +
                                 "$3\r\nACK\r\n" +
