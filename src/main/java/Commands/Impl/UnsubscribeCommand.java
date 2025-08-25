@@ -38,7 +38,7 @@ public class UnsubscribeCommand implements Command {
         }
 
         // UNSUBSCRIBE 命令本身不返回数据给命令处理循环，因为它直接写入流
-        return null;
+        return Command.STATE_CHANGE_SUBSCRIBE;
     }
     /**
      * 辅助方法，用于向客户端发送标准的退订响应
