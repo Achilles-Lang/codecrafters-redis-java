@@ -34,18 +34,9 @@ public class PublishCommand implements Command {
         // 2. 调用我们刚刚新增的方法获取订阅者数量
         int subscriberCount = dataStore.getSubscriberCount(channelName);
 
-        // 3. 使用 RespEncoder 将整数结果直接发送给客户端
-        try {
-            OutputStream os = context.getOutputStream();
-            RespEncoder.encode(os, subscriberCount);
-            os.flush();
-        } catch (IOException e) {
-            // 如果发送失败，可以记录日志或返回一个错误
-            System.out.println("Error writing PUBLISH response: " + e.getMessage());
-        }
 
         // PUBLISH 命令本身不改变客户端的订阅状态，也不需要特殊的返回值
         // 返回 null 表示正常执行完毕
-        return null;
+        return subscriberCount;
     }
 }
