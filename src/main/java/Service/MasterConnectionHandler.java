@@ -66,11 +66,27 @@ public class MasterConnectionHandler implements Runnable {
                     break;
                 }
                 String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
-                List<byte[]> args = commandParts.subList(1, commandParts.size());
-                Command command = this.commandHandler.getCommand(commandName);
-                if (command != null) {
-                    command.execute(args, null);
+
+                if(commandName.equals("replconf")){
+                    if(commandParts.size()==2&& new String(commandParts.get(1)).equals("GETACK")){
+                        long offset=0;
+                        String response = "*3\r\n" +
+                                "$8\r\nREPLCONF\r\n" +
+                                "$3\r\nACK\r\n" +
+                                "$" + String.valueOf(offset).length() + "\r\n" +
+                                offset + "\r\n";
+
+                        os.write(response.getBytes(StandardCharsets.UTF_8));
+                        System.out.println("Sent REPLCONF ACK " + offset);
+                    }
+                } else {
+                    List<byte[]> args = commandParts.subList(1, commandParts.size());
+                    Command command = this.commandHandler.getCommand(commandName);
+                    if (command != null) {
+                        command.execute(args, null);
+                    }
                 }
+
             }
 
         } catch (IOException e) {
