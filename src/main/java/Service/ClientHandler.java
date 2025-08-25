@@ -181,6 +181,7 @@ public class ClientHandler implements Runnable{
                                     outputStream.write(rdbFile);
                                 } else {
                                     RespEncoder.encode(outputStream, result);
+                                    context.getOutputStream().flush();
                                 }
                             }
                         }

@@ -29,6 +29,8 @@ public class DataStore {
 
     private final Queue<AckCallback> ackCallbacks = new ConcurrentLinkedQueue<>();
 
+    private final Map<String,Queue<Object>> blpopWaitingQueues = new ConcurrentHashMap<>();
+
     private String rdbDir;
 
     private String rdbFileName;
@@ -166,13 +168,19 @@ public class DataStore {
         List<byte[]> list = getOrCreateList(key);
         list.addAll(valuesToPush);
 
-        System.out.println("[DataStore.rpush][Thread-" + threadId + "] Notifying waiters...");
-        this.notifyAll();
-
+        Queue<Object> waitingQueue = blpopWaitingQueues.get(key);
+        if (waitingQueue != null && !waitingQueue.isEmpty()) {
+            Object monitor = waitingQueue.poll();
+            if (monitor != null) {
+                System.out.println("[DataStore.rpush][Thread-" + threadId + "] Notifying a specific BLPOP waiter...");
+                synchronized (monitor) {
+                    monitor.notify();
+                }
+            }
+        }
         System.out.println("[DataStore.rpush][Thread-" + threadId + "] FINISH. New size: " + list.size());
         return list.size();
     }
-
     /**
      * 将一个或多个值推入列表头部。
      *
@@ -251,43 +259,58 @@ public class DataStore {
      * @throws WrongTypeException   如果 key 存在但不是列表。
      * @throws InterruptedException 如果线程在等待时被中断。
      */
-    public synchronized Object[] blpop(List<byte[]> keys, double timeoutSeconds) throws WrongTypeException, InterruptedException {
+    public Object[] blpop(List<byte[]> keys, double timeoutSeconds) throws WrongTypeException, InterruptedException {
         long threadId = Thread.currentThread().getId();
         System.out.println("[DataStore.blpop][Thread-" + threadId + "] START");
         long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
 
-        while (true) {
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Loop top. Checking keys.");
+        // 1. 首先进行一次非阻塞检查
+        synchronized (this) {
             for (byte[] keyBytes : keys) {
                 String key = new String(keyBytes, StandardCharsets.UTF_8);
                 Object value = map.get(key);
-                if (value != null) {
-                    if (!(value instanceof List)) {
-                        System.out.println("[DataStore.blpop][Thread-" + threadId + "] CRASH? WrongTypeException about to be thrown.");
-                        throw new WrongTypeException("Operation against a key holding the wrong kind of value");
-                    }
-                    LinkedList<byte[]> list = (LinkedList<byte[]>) value;
-                    if (!list.isEmpty()) {
-                        System.out.println("[DataStore.blpop][Thread-" + threadId + "] Found item in '" + key + "'. Returning.");
-                        return new Object[]{keyBytes, list.removeFirst()};
-                    }
+                if (value instanceof LinkedList && !((LinkedList<?>) value).isEmpty()) {
+                    System.out.println("[DataStore.blpop][Thread-" + threadId + "] Found item immediately in '" + key + "'. Returning.");
+                    return new Object[]{keyBytes, ((LinkedList<byte[]>) value).removeFirst()};
                 }
             }
-
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] No items found. Preparing to wait.");
-            long remainingTime = 0;
-            if (timeoutSeconds > 0) {
-                remainingTime = deadline - System.currentTimeMillis();
-                if (remainingTime <= 0) {
-                    System.out.println("[DataStore.blpop][Thread-" + threadId + "] Timeout reached before waiting. Returning null.");
-                    return null;
-                }
-            }
-
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Waiting for " + remainingTime + "ms...");
-            this.wait(remainingTime);
-            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Woke up from wait.");
         }
+
+        // 2. 如果没有数据，则准备阻塞
+        // 为了简化，我们只处理第一个 key 的等待。一个完整的实现需要为所有 key 创建等待逻辑。
+        String keyToWaitOn = new String(keys.get(0), StandardCharsets.UTF_8);
+        Object monitor = new Object(); // 为当前线程创建独立的监视器
+
+        // 3. 将监视器加入对应 key 的等待队列
+        blpopWaitingQueues.computeIfAbsent(keyToWaitOn, k -> new ConcurrentLinkedQueue<>()).add(monitor);
+        System.out.println("[DataStore.blpop][Thread-" + threadId + "] No items found. Added to wait queue for key: " + keyToWaitOn);
+
+        // 4. 在独立的监视器上等待
+        synchronized (monitor) {
+            long waitTime = 0;
+            if (timeoutSeconds > 0) {
+                waitTime = deadline - System.currentTimeMillis();
+                if (waitTime <= 0) {
+                    blpopWaitingQueues.get(keyToWaitOn).remove(monitor); // 超时前移除自己
+                    return null; // 超时
+                }
+            }
+            System.out.println("[DataStore.blpop][Thread-" + threadId + "] Waiting on its monitor for " + waitTime + "ms...");
+            monitor.wait(waitTime);
+        }
+
+        // 5. 被唤醒后，再次检查数据（因为可能是被超时唤醒的）
+        synchronized (this) {
+            Object value = map.get(keyToWaitOn);
+            if (value instanceof LinkedList && !((LinkedList<?>) value).isEmpty()) {
+                System.out.println("[DataStore.blpop][Thread-" + threadId + "] Woke up and found item in '" + keyToWaitOn + "'. Returning.");
+                return new Object[]{keyToWaitOn.getBytes(), ((LinkedList<byte[]>) value).removeFirst()};
+            }
+        }
+
+        // 如果被唤醒但没有数据（例如，超时），则返回 null
+        System.out.println("[DataStore.blpop][Thread-" + threadId + "] Woke up but found no item (timeout). Returning null.");
+        return null;
     }
 
     /**
