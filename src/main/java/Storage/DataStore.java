@@ -264,6 +264,7 @@ public class DataStore {
         System.out.println("[DataStore.blpop][Thread-" + threadId + "] START");
         long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
 
+        Object monitor = new Object();
         // 1. 首先进行一次非阻塞检查
         synchronized (this) {
             for (byte[] keyBytes : keys) {
@@ -274,16 +275,15 @@ public class DataStore {
                     return new Object[]{keyBytes, ((LinkedList<byte[]>) value).removeFirst()};
                 }
             }
-        }
+            String keyToWaitOn = new String(keys.get(0), StandardCharsets.UTF_8);
+            blpopWaitingQueues.computeIfAbsent(keyToWaitOn, k -> new ConcurrentLinkedQueue<>()).add(monitor);
+            System.out.println("[DataStore.blpop][Thread-" + threadId + "] No items found. Added to wait queue for key: " + keyToWaitOn);
 
+        }
         // 2. 如果没有数据，则准备阻塞
         // 为了简化，我们只处理第一个 key 的等待。一个完整的实现需要为所有 key 创建等待逻辑。
-        String keyToWaitOn = new String(keys.get(0), StandardCharsets.UTF_8);
-        Object monitor = new Object(); // 为当前线程创建独立的监视器
 
         // 3. 将监视器加入对应 key 的等待队列
-        blpopWaitingQueues.computeIfAbsent(keyToWaitOn, k -> new ConcurrentLinkedQueue<>()).add(monitor);
-        System.out.println("[DataStore.blpop][Thread-" + threadId + "] No items found. Added to wait queue for key: " + keyToWaitOn);
 
         // 4. 在独立的监视器上等待
         synchronized (monitor) {
@@ -291,7 +291,10 @@ public class DataStore {
             if (timeoutSeconds > 0) {
                 waitTime = deadline - System.currentTimeMillis();
                 if (waitTime <= 0) {
-                    blpopWaitingQueues.get(keyToWaitOn).remove(monitor); // 超时前移除自己
+                    synchronized (this){
+                        blpopWaitingQueues.get(new String(keys.get(0),StandardCharsets.UTF_8)).remove(monitor); // 超时前移除自己
+
+                    }
                     return null; // 超时
                 }
             }
@@ -301,10 +304,13 @@ public class DataStore {
 
         // 5. 被唤醒后，再次检查数据（因为可能是被超时唤醒的）
         synchronized (this) {
-            Object value = map.get(keyToWaitOn);
-            if (value instanceof LinkedList && !((LinkedList<?>) value).isEmpty()) {
-                System.out.println("[DataStore.blpop][Thread-" + threadId + "] Woke up and found item in '" + keyToWaitOn + "'. Returning.");
-                return new Object[]{keyToWaitOn.getBytes(), ((LinkedList<byte[]>) value).removeFirst()};
+            for (byte[] keyBytes : keys) {
+                String key = new String(keyBytes, StandardCharsets.UTF_8);
+                Object value = map.get(key);
+                if (value instanceof LinkedList && !((LinkedList<?>) value).isEmpty()) {
+                    System.out.println("[DataStore.blpop][Thread-" + threadId + "] Woke up and found item in '" + key + "'. Returning.");
+                    return new Object[]{keyBytes, ((LinkedList<byte[]>) value).removeFirst()};
+                }
             }
         }
 
