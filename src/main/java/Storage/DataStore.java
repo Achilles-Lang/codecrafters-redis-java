@@ -728,4 +728,16 @@ public class DataStore {
             }
         }
     }
+    /**
+     * 新增：获取指定频道的订阅者数量。
+     * @param channelName 频道名称
+     * @return 订阅了该频道的客户端数量
+     */
+    public synchronized int getSubscriberCount(String channelName) {
+        List<OutputStream> subscribers = subscriptions.get(channelName);
+        if (subscribers == null) {
+            return 0;
+        }
+        return subscribers.size();
+    }
 }

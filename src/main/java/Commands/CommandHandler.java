@@ -38,6 +38,7 @@ public class CommandHandler {
         commandMap.put("config",new ConfigCommand());
         commandMap.put("keys",new KeysCommand());
         commandMap.put("subscribe",new SubscribeCommand());
+        commandMap.put("publish",new PublishCommand());
     }
     public Command getCommand(String commandName)
     {
