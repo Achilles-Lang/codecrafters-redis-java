@@ -67,6 +67,10 @@ public class DataStore {
         return this.replicas.size();
     }
 
+    public synchronized Map<OutputStream, Set<String>> getClientSubscriptions() {
+        return this.clientSubscriptions;
+    }
+
     @FunctionalInterface
     public interface AckCallback {
         void onAckReceived(long offset);
@@ -568,5 +572,43 @@ public class DataStore {
     public synchronized int getSubscriberCount(String channelName) {
         List<OutputStream> subscribers = subscriptions.get(channelName);
         return (subscribers == null) ? 0 : subscribers.size();
+    }
+    /**
+     * **新增**: 将一个客户端从指定频道退订。
+     * @param channel 要退订的频道
+     * @param clientStream 退订的客户端的输出流
+     */
+    public synchronized void unsubscribe(String channel, OutputStream clientStream) {
+        // 1. 从 "客户端 -> 频道集合" 的关系中移除
+        Set<String> subscribedChannels = clientSubscriptions.get(clientStream);
+        if (subscribedChannels != null) {
+            subscribedChannels.remove(channel);
+        }
+
+        // 2. 从 "频道 -> 客户端列表" 的关系中移除
+        List<OutputStream> subscribers = subscriptions.get(channel);
+        if (subscribers != null) {
+            subscribers.remove(clientStream);
+            // 如果一个频道没有任何订阅者了，可以从Map中移除以节省内存
+            if (subscribers.isEmpty()) {
+                subscriptions.remove(channel);
+            }
+        }
+    }
+
+    /**
+     * **新增 (可选但推荐)**: 从所有频道退订。
+     * @param clientStream 要退订的客户端
+     */
+    public synchronized void unsubscribeFromAll(OutputStream clientStream) {
+        // 1. 获取该客户端订阅的所有频道
+        Set<String> channels = clientSubscriptions.get(clientStream);
+        if (channels != null && !channels.isEmpty()) {
+            // 2. 遍历它订阅过的所有频道，并从中移除该客户端
+            // 创建一个副本以避免在遍历时修改集合
+            for (String channel : new ArrayList<>(channels)) {
+                unsubscribe(channel, clientStream);
+            }
+        }
     }
 }
