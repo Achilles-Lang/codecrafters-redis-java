@@ -90,6 +90,10 @@ public class MasterConnectionHandler implements Runnable {
 
                         }
                     }
+                } else if (commandName.equals("ping")) {
+                    System.out.println("Received PING from master. No further action needed.");
+
+
                 } else {
 
 
