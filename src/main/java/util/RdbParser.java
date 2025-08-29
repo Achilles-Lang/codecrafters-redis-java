@@ -39,15 +39,15 @@ public class RdbParser {
 
                 switch (opCode) {
                     case 0xFA: // AUX field
-                        readString(); // Read and discard key
-                        readString(); // Read and discard value
+                        readStringEncoded(); // Read and discard key
+                        readStringEncoded(); // Read and discard value
                         break;
                     case 0xFE: // SELECTDB
-                        readLengthEncodedInt(); // Read and discard db number
+                        readLength(); // Read and discard db number
                         break;
                     case 0xFB: // RESIZEDB
-                        readLengthEncodedInt(); // Read and discard hash table size
-                        readLengthEncodedInt(); // Read and discard expire hash table size
+                        readLength(); // Read and discard hash table size
+                        readLength(); // Read and discard expire hash table size
                         break;
                     case 0xFD: // EXPIRETIME (seconds)
                         expiryTime = readExpirySeconds();
@@ -56,15 +56,16 @@ public class RdbParser {
                         expiryTime = readExpiryMillis();
                         break;
                     case 0x00: // Value type: String
-                        byte[] key = readString();
-                        byte[] value = readString();
+                        byte[] key = readStringEncoded();
+                        byte[] value = readStringEncoded();
                         dataStore.setString(new String(key, StandardCharsets.UTF_8), new ValueEntry(value, expiryTime != -1 ? expiryTime : null));
                         expiryTime = -1; // Reset expiry time for the next key
                         break;
                     case 0xFF: // EOF
+                        // Before returning, check for checksum
+                        bis.readNBytes(8); // Read and discard 8-byte checksum
                         return; // End of file
                     default:
-                        // For this challenge, we can ignore other opcodes
                         System.out.println("Ignoring unknown opcode: " + opCode);
                         break;
                 }
@@ -101,45 +102,57 @@ public class RdbParser {
                 ((long) (bytes[0] & 0xFF));
     }
 
-    private byte[] readString() throws IOException {
-        int length = readLengthEncodedInt();
-        // Here we assume it's a simple length, not a compressed string.
-        // For a full implementation, you'd check the high bits of `length`
-        // if special encoding was indicated by the first byte.
-        if (length == -1) { // Special case for integer encoding
-            throw new IOException("Integer string encoding not supported yet.");
+    private int readLength() throws IOException {
+        int firstByte = bis.read();
+        if (firstByte == -1) {
+            throw new IOException("End of stream");
         }
-        return bis.readNBytes(length);
+        int type = (firstByte & 0xC0) >> 6;
+        if (type == 0) { // 6-bit length
+            return firstByte & 0x3F;
+        } else if (type == 1) { // 14-bit length
+            int nextByte = bis.read();
+            return ((firstByte & 0x3F) << 8) | nextByte;
+        } else if (type == 2) { // 32-bit length
+            return bis.read() << 24 | bis.read() << 16 | bis.read() << 8 | bis.read();
+        }
+        return -1; // Should not happen for length
     }
 
     /**
-     * **关键修复**: 完整实现了 RDB 的长度编码解析。
+     * **关键修复**: 这个方法现在可以处理普通字符串和整数编码的字符串。
      */
-    private int readLengthEncodedInt() throws IOException {
+    private byte[] readStringEncoded() throws IOException {
         int firstByte = bis.read();
         if (firstByte == -1) {
-            throw new IOException("End of stream while reading length");
+            throw new IOException("End of stream");
         }
-        int type = (firstByte & 0xC0) >> 6; // Get the top 2 bits
-        if (type == 0) {
-            // 00xxxxxx -> 6-bit length
-            return firstByte & 0x3F;
-        } else if (type == 1) {
-            // 01xxxxxx -> 14-bit length
-            int nextByte = bis.read();
-            return ((firstByte & 0x3F) << 8) | nextByte;
-        } else if (type == 2) {
-            // 10xxxxxx -> 32-bit length
-            byte[] bytes = bis.readNBytes(4);
-            return ((bytes[0] & 0xFF) << 24) | ((bytes[1] & 0xFF) << 16) |
-                    ((bytes[2] & 0xFF) << 8)  | (bytes[3] & 0xFF);
-        } else { // type == 3
-            // 11xxxxxx -> Special encoding, not a simple length
-            // For now, we'll treat this as an unsupported feature.
-            // A full parser would handle integer or LZF compressed strings here.
-            System.out.println("Special encoded string format not supported.");
-            // We return -1 to indicate this special case, which `readString` can handle.
-            return -1;
+
+        int type = (firstByte & 0xC0) >> 6;
+        if (type == 3) { // Special encoded format
+            int encoding = firstByte & 0x3F;
+            if (encoding == 0) { // 8-bit integer
+                return String.valueOf(bis.read()).getBytes();
+            } else if (encoding == 1) { // 16-bit integer
+                int value = (bis.read() & 0xFF) | ((bis.read() & 0xFF) << 8);
+                return String.valueOf(value).getBytes();
+            } else if (encoding == 2) { // 32-bit integer
+                long value = ((long)bis.read() & 0xFF) | (((long)bis.read() & 0xFF) << 8) | (((long)bis.read() & 0xFF) << 16) | (((long)bis.read() & 0xFF) << 24);
+                return String.valueOf(value).getBytes();
+            } else {
+                throw new IOException("Unknown string encoding type: " + encoding);
+            }
+        } else { // Length-prefixed string
+            int length;
+            if (type == 0) {
+                length = firstByte & 0x3F;
+            } else if (type == 1) {
+                int nextByte = bis.read();
+                length = ((firstByte & 0x3F) << 8) | nextByte;
+            } else { // type == 2
+                length = bis.read() << 24 | bis.read() << 16 | bis.read() << 8 | bis.read();
+            }
+            return bis.readNBytes(length);
         }
     }
 }
