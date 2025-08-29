@@ -10,16 +10,17 @@ import java.util.concurrent.ConcurrentSkipListMap;
  */
 public class CommandContext {
     private final OutputStream outputStream;
-    private final boolean isClientSubscribed;
+    private  boolean isClientSubscribed=false;
+    private long replicaOffset=0;
 
     public CommandContext(OutputStream os,boolean isClientSubscribed){
         this.outputStream= os;
         this.isClientSubscribed=isClientSubscribed;
     }
 
-    public CommandContext(OutputStream os) {
+    public CommandContext(OutputStream os,long replicaOffset) {
         this.outputStream= os;
-        this.isClientSubscribed=false;
+        this.replicaOffset=replicaOffset;
     }
 
     public OutputStream getOutputStream(){
@@ -28,5 +29,14 @@ public class CommandContext {
 
     public boolean isClientSubscribed(){
         return isClientSubscribed;
+    }
+    public long getReplicaOffset(){
+        return replicaOffset;
+    }
+    public void enterSubscribeMode(){
+        this.isClientSubscribed=true;
+    }
+    public void exitSubscribeMode(){
+        this.isClientSubscribed=false;
     }
 }

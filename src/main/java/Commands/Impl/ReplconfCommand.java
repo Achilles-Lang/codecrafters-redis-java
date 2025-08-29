@@ -4,35 +4,40 @@ import Commands.Command;
 import Commands.CommandContext;
 
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/**
- * @author Achilles
- * @create 2018/11/01
- * @description 配置复制
- */
 public class ReplconfCommand implements Command {
+
     @Override
     public Object execute(List<byte[]> args, CommandContext context) {
-        if (args.size() >= 2 && "getack".equalsIgnoreCase(new String(args.get(0)))) {
-            // 从 DataStore 或者 MasterConnectionHandler 获取偏移量
-            // 这里需要一种机制来传递偏移量，暂时我们先回复一个硬编码的 0
-            long offset = 0; // TODO: Replace with actual offset
+        if (args.isEmpty()) {
+            return new Exception("wrong number of arguments for 'replconf' command");
+        }
+
+        String subCommand = new String(args.get(0), StandardCharsets.UTF_8).toLowerCase();
+
+        if ("getack".equals(subCommand)) {
+            // ** ===> 关键修改 <=== **
+            // 不再返回硬编码的 0，而是从上下文中获取真实的偏移量
+            long offset = context.getReplicaOffset();
+
             String response = "*3\r\n" +
                     "$8\r\nREPLCONF\r\n" +
                     "$3\r\nACK\r\n" +
                     "$" + String.valueOf(offset).length() + "\r\n" +
                     offset + "\r\n";
             try {
-                context.getOutputStream().write(response.getBytes());
+                // 我们自己发送响应，所以返回 null 告诉主循环不要再发了
+                context.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
                 context.getOutputStream().flush();
+                return null;
             } catch (IOException e) {
                 return e;
             }
-            return null; // 我们已经自己回复了，不需要主循环再回复
         }
 
-        return "OK"; // 对于 listening-port 等命
+        // 处理其他 REPLCONF 子命令，比如 listening-port, capa
+        return "OK";
     }
 }

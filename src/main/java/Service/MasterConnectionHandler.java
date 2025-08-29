@@ -63,7 +63,7 @@ public class MasterConnectionHandler implements Runnable {
 
                         // **关键修复 2**: 创建一个非 null 的上下文，但内部的 stream 可以是 null
                         // 因为从节点执行命令时，不需要向 Master 回复执行结果（ACK 除外）
-                        CommandContext context = new CommandContext(os); // 传递 os 以便 REPLCONF ACK 可以回复
+                        CommandContext context = new CommandContext(os,this.replicaOffset); // 传递 os 以便 REPLCONF ACK 可以回复
 
                         // 我们只执行写命令，因为读命令没有意义
                         if (command instanceof WriteCommand) {
