@@ -25,8 +25,10 @@ public class RedisSortedSet {
     public synchronized int add(double score, byte[] member) {
         String memberStr = new String(member);
 
+        boolean isNewMember = !memberScores.containsKey(memberStr);
+
         // 检查成员是否已存在
-        if (memberScores.containsKey(memberStr)) {
+        if (!isNewMember) {
             double oldScore = memberScores.get(memberStr);
             // 如果分数没变，什么都不做
             if (oldScore == score) {
@@ -41,6 +43,6 @@ public class RedisSortedSet {
         memberScores.put(memberStr, score);
 
         // 如果是新成员，返回 1
-        return memberScores.containsKey(memberStr) ? 0 : 1;
+        return isNewMember ? 0 : 1;
     }
 }
