@@ -735,4 +735,29 @@ public class DataStore {
         RedisSortedSet sortedSet = (RedisSortedSet) value;
         return sortedSet.getScore(member);
     }
+    /**
+     * 移除有序集合中的成员。
+     * @param key 有序集合的 key
+     * @param members 要移除的成员
+     * @return 移除的成员数量
+     * @throws WrongTypeException 如果 key 存在但不是有序集合。
+     */
+    public synchronized int zrem(String key, List<byte[]> members) throws WrongTypeException {
+        Object value = map.get(key);
+
+        if(value == null){
+            return 0;
+        }
+
+        if(!(value instanceof RedisSortedSet)){
+            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+        }
+
+        RedisSortedSet sortedSet = (RedisSortedSet) value;
+        int removedCount = 0;
+        for(byte[] member:members){
+            removedCount+=sortedSet.remove(member);
+        }
+        return removedCount;
+    }
 }

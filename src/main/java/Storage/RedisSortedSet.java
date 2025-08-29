@@ -183,6 +183,24 @@ public class RedisSortedSet {
         String memberStr = new String(member);
         return memberScores.get(memberStr);
     }
+    /**
+     * 从有序集合中移除一个成员
+     * @param member 要移除的成员
+     * @return 如果成功移除了一个成员，则返回 1；如果成员不存在，返回 0。
+     */
+    public synchronized int remove(byte[] member) {
+        String memberStr = new String(member);
+
+        if(!memberScores.containsKey(memberStr)){
+            return 0;
+        }
+
+        double score = memberScores.get(memberStr);
+
+        memberScores.remove(memberStr);
+        sortedEntries.remove(new SortedSetEntry(score, member));
+        return 1;
+    }
 }
 
 
