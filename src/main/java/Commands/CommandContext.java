@@ -31,6 +31,13 @@ public class CommandContext {
         this.outputStream = outputStream;
         this.parser = parser;
     }
+
+    public CommandContext(OutputStream os, long replicaOffset) {
+        this.outputStream = os;
+        this.replicaOffset = replicaOffset;
+        this.parser = null;
+    }
+
     public OutputStream getOutputStream(){
         return outputStream;
     }

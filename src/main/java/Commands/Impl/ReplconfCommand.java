@@ -1,4 +1,4 @@
-// 文件路径: src/main/java/Commands/Impl/ReplconfCommand.java
+// File Path: src/main/java/Commands/Impl/ReplconfCommand.java
 
 package Commands.Impl;
 
@@ -18,28 +18,32 @@ public class ReplconfCommand implements Command {
 
         String subCommand = new String(args.get(0), StandardCharsets.UTF_8).toLowerCase();
 
+        // This command is special. The replica receives it from the master
+        // and must reply with its current processed offset.
         if ("getack".equals(subCommand)) {
-            if (context.getParser() != null) {
-                // ** ===> 核心修正：直接从 parser 获取当前的偏移量 <=== **
-                long offset = context.getParser().getBytesRead();
-
-                String response = "*3\r\n" +
-                        "$8\r\nREPLCONF\r\n" +
-                        "$3\r\nACK\r\n" +
-                        "$" + String.valueOf(offset).length() + "\r\n" +
-                        offset + "\r\n";
-                try {
+            // The offset is passed via the context from the MasterConnectionHandler
+            long offset = context.getReplicaOffset();
+            String response = "*3\r\n" +
+                    "$8\r\nREPLCONF\r\n" +
+                    "$3\r\nACK\r\n" +
+                    "$" + String.valueOf(offset).length() + "\r\n" +
+                    offset + "\r\n";
+            try {
+                // The context must have a valid output stream to the master
+                if (context.getOutputStream() != null) {
                     context.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
                     context.getOutputStream().flush();
-                } catch (IOException e) {
-                    System.out.println("Error sending ACK reply: " + e.getMessage());
                 }
+            } catch (IOException e) {
+                System.out.println("Error sending ACK reply: " + e.getMessage());
             }
-            // 已经手动回复，返回一个特殊对象，告诉主循环不要再回复
-            return Command.NULL_ARRAY_RESPONSE; // 或者其他你定义的“无回复”信号
+            // We've handled the response ourselves, so we return a special value
+            // to prevent the main loop from sending another response.
+            return Command.STATE_CHANGE_SUBSCRIBE; // Or any other "no-reply" signal object
         }
 
-        // 处理其他 REPLCONF 子命令，如 listening-port, capa
+        // This handles the initial handshake REPLCONF calls from the replica to the master.
+        // It's not used during the propagation phase.
         return "OK";
     }
 }
