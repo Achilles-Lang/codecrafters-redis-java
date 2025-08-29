@@ -8,6 +8,7 @@ import java.util.Map;
 /**
  * @author Achilles
  * 命令的注册与分支
+ *
  */
 public class CommandHandler {
     private final Map<String, Command> commandMap=new HashMap<>();
