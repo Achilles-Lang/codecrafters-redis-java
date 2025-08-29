@@ -25,7 +25,6 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-    private long replicaOffset = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -44,53 +43,40 @@ public class MasterConnectionHandler implements Runnable {
             performHandshake(os, parser);
             System.out.println("Handshake successful. Listening for propagated commands.");
 
+            // ===> 核心修正 1: 在循环外部包裹一个大的 try-catch，处理连接级别的错误 <===
             while (!masterSocket.isClosed()) {
+                // ===> 核心修正 2: 在循环内部包裹一个小的 try-catch，处理单个命令的错误 <===
+                // 这就是我们的“防弹衣”，确保线程不会因为单个命令失败而死亡。
                 try {
-                    // ===> 核心修正 1: 先计算出命令的大小 <===
-                    long bytesBeforeCommand = parser.getBytesRead();
                     List<byte[]> commandParts = parser.readCommand();
                     if (commandParts == null || commandParts.isEmpty()) {
-                        break;
+                        break; // 连接已关闭
                     }
-                    long bytesAfterCommand = parser.getBytesRead();
-                    long commandSize = bytesAfterCommand - bytesBeforeCommand;
 
                     String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
                     Command command = this.commandHandler.getCommand(commandName);
 
-                    // ===> 核心修正 2: 先处理命令（包括用旧的 offset 回复 ACK）<===
                     if (command != null) {
-                        if ("replconf".equals(commandName) && commandParts.size() >= 2 && "getack".equalsIgnoreCase(new String(commandParts.get(1)))) {
-                            // 使用当前的、尚未增加的 replicaOffset 来回复
-                            replyAck(os, this.replicaOffset);
-                        } else if (command instanceof WriteCommand) {
-                            System.out.println("Executing propagated command: " + formatCommand(commandParts));
-                            CommandContext dummyContext = new CommandContext(null);
+                        System.out.println("Executing propagated command: " + formatCommand(commandParts));
+                        // 对于从节点来说，它只执行写命令，并且不需要回复。
+                        // 我们创建一个临时的、无害的上下文。
+                        if (command instanceof WriteCommand) {
+                            CommandContext dummyContext = new CommandContext(null, false); // 使用可以接受 null 的构造函数
                             command.execute(commandParts.subList(1, commandParts.size()), dummyContext);
                         }
+                    } else {
+                        System.out.println("Unknown propagated command received: " + commandName);
                     }
-
-                    // ===> 核心修正 3: 处理完命令之后，再把这个命令的大小加到 offset 上 <===
-                    this.replicaOffset += commandSize;
-
                 } catch (Exception e) {
-                    System.out.println("!!! Error processing a propagated command, but continuing: " + e.getMessage());
-                    e.printStackTrace();
+                    // 如果单个命令执行失败，打印错误信息，但循环继续！
+                    System.out.println("!!! Error executing a propagated command, but continuing loop. Error: " + e.getMessage());
+                    e.printStackTrace(); // 打印详细的堆栈信息以帮助调试
                 }
             }
         } catch (IOException e) {
+            // 这个 catch 块只处理网络连接问题
             System.out.println("Master connection lost: " + e.getMessage());
         }
-    }
-
-    private void replyAck(OutputStream os, long offset) throws IOException {
-        String response = "*3\r\n" +
-                "$8\r\nREPLCONF\r\n" +
-                "$3\r\nACK\r\n" +
-                "$" + String.valueOf(offset).length() + "\r\n" +
-                offset + "\r\n";
-        os.write(response.getBytes(StandardCharsets.UTF_8));
-        os.flush();
     }
 
     private void performHandshake(OutputStream os, Protocol parser) throws IOException {
@@ -123,3 +109,4 @@ public class MasterConnectionHandler implements Runnable {
                 .collect(Collectors.joining(", ", "[", "]"));
     }
 }
+
