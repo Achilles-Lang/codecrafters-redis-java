@@ -1,5 +1,7 @@
+// 文件路径: src/main/java/Service/RespEncoder.java
 package Service;
 
+import Commands.Command; // <--- 确保导入 Command 接口
 import Config.WrongTypeException;
 import Storage.StreamEntryID;
 import Storage.ValueEntry;
@@ -9,23 +11,29 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/**
- * @author Achilles
- * RESP 响应编码器
- */
 public class RespEncoder {
     public static void encode(OutputStream os, Object result) throws IOException {
-        if (result == null) {
-            os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8)); // RESP Null Bulk String
+
+        // ===> 修改/新增的逻辑开始 <===
+        if (result == Command.NULL_BULK_STRING_RESPONSE) {
+            os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8));
+        } else if (result == Command.NULL_ARRAY_RESPONSE) {
+            os.write("*-1\r\n".getBytes(StandardCharsets.UTF_8));
+        }
+        // ===> 修改/新增的逻辑结束 <===
+
+        else if (result == null) {
+            // 保留一个默认的 null 处理，以兼容老的 GET 命令逻辑
+            os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof String) {
-            os.write(("+" + result + "\r\n").getBytes(StandardCharsets.UTF_8)); // Simple String
+            os.write(("+" + result + "\r\n").getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof byte[]) {
             byte[] arr = (byte[]) result;
             os.write(('$' + String.valueOf(arr.length) + "\r\n").getBytes(StandardCharsets.UTF_8));
             os.write(arr);
             os.write("\r\n".getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof Long || result instanceof Integer) {
-            os.write((":" + result + "\r\n").getBytes(StandardCharsets.UTF_8)); // Integer
+            os.write((":" + result + "\r\n").getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof List) {
             List<?> list = (List<?>) result;
             os.write(("*"+ list.size() + "\r\n").getBytes(StandardCharsets.UTF_8));
@@ -45,7 +53,6 @@ public class RespEncoder {
                 os.write(("-ERR " + message + "\r\n").getBytes(StandardCharsets.UTF_8));
             }
         } else {
-            // **关键修复**: 添加一个默认分支来处理所有未知类型，防止静默失败。
             String errorMsg = "Unsupported response type: " + result.getClass().getName();
             os.write(("-ERR " + errorMsg + "\r\n").getBytes(StandardCharsets.UTF_8));
         }
