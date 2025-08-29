@@ -158,12 +158,10 @@ public class RedisSortedSet {
             stop=size-1;
         }
 
-// 3. 如果起始索引无效或范围无效，返回空列表
         if (start >= size || start > stop) {
             return new ArrayList<>();
         }
 
-// 4. 截取子列表并提取成员
         return entryList.subList(start, stop + 1) // subList 的第二个参数是 exclusive，所以要 +1
                 .stream()
                 .map(SortedSetEntry::getMember)
