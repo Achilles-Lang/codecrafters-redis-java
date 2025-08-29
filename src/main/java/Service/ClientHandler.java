@@ -171,19 +171,17 @@ public class ClientHandler implements Runnable{
 
                             if (result == Command.STATE_CHANGE_SUBSCRIBE) {
                                 this.isSubscribed = true;
-                            } else if (result != BlpopCommand.RESPONSE_ALREADY_SENT) {
-                                if (result instanceof FullResyncResponse) {
+                            } else if (result instanceof FullResyncResponse) {
                                     FullResyncResponse resync = (FullResyncResponse) result;
                                     String fullResyncLine = "+FULLRESYNC " + resync.getMasterReplid() + " " + resync.getMasterReplOffset() + "\r\n";
                                     outputStream.write(fullResyncLine.getBytes(StandardCharsets.UTF_8));
                                     byte[] rdbFile = RdbUtil.getEmptyRdbFile();
                                     outputStream.write(("$" + rdbFile.length + "\r\n").getBytes(StandardCharsets.UTF_8));
                                     outputStream.write(rdbFile);
-                                } else {
-                                    RespEncoder.encode(outputStream, result);
-                                    context.getOutputStream().flush();
-                                }
-                            }
+                            }else {
+                            RespEncoder.encode(outputStream, result);
+                            context.getOutputStream().flush();
+                        }
                         }
                     }
                 }
