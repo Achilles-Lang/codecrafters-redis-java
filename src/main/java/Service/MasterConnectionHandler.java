@@ -25,6 +25,7 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
+    // ** ===> 关键修复 1: offset 初始化为 0，代表握手后处理的写命令字节数 <=== **
     private long replicaOffset = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
@@ -41,61 +42,50 @@ public class MasterConnectionHandler implements Runnable {
             InputStream is = masterSocket.getInputStream();
             Protocol parser = new Protocol(is);
 
-            // --- 阶段 1: 握手 ---
             performHandshake(os, parser);
             System.out.println("Handshake successful. Listening for propagated commands.");
 
-            // ** ===> 关键修复：在这里初始化偏移量！ <=== **
-            // 在握手完成后，从 parser 获取已经读取的字节数，并将其设置为我们的初始偏移量。
-            this.replicaOffset = parser.getBytesRead();
-
-            // --- 阶段 2: 命令传播循环 ---
             while (!masterSocket.isClosed()) {
                 try {
-                    // 记录进入循环前的偏移量，以便计算本次命令的真实大小
+                    // ** ===> 关键修复 2: 精确计算每个命令的大小 <=== **
                     long bytesBeforeCommand = parser.getBytesRead();
-
                     List<byte[]> commandParts = parser.readCommand();
-                    if (commandParts == null || commandParts.isEmpty()) {
-                        break;
-                    }
-
-                    // 计算本次命令实际消耗的字节数
-                    long commandSize = parser.getBytesRead() - bytesBeforeCommand;
+                    if (commandParts == null || commandParts.isEmpty()) { break; }
+                    long bytesAfterCommand = parser.getBytesRead();
+                    long commandSize = bytesAfterCommand - bytesBeforeCommand;
 
                     String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
                     Command command = this.commandHandler.getCommand(commandName);
 
                     if (command != null) {
                         System.out.println("Executing propagated command: " + formatCommand(commandParts));
-
                         CommandContext context = new CommandContext(os, this.replicaOffset);
 
+                        // ** ===> 关键修复 3: 只有写命令和 REPLCONF 需要执行 <=== **
+                        // (其他命令如 PING 可以安全忽略)
                         if (command instanceof WriteCommand || commandName.equals("replconf")) {
                             command.execute(commandParts.subList(1, commandParts.size()), context);
                         }
 
-                        // 只为写命令更新偏移量
+                        // ** ===> 关键修复 4: 只有写命令才增加 offset <=== **
                         if (command instanceof WriteCommand) {
                             this.replicaOffset += commandSize;
                         }
-
                     } else {
                         System.out.println("Unknown propagated command: " + commandName);
+                        // 即使命令未知，也要累加偏移量以保持同步
                         this.replicaOffset += commandSize;
                     }
                 } catch (Exception e) {
-                    System.out.println("!!! Critical error executing propagated command: " + e.getMessage());
+                    System.out.println("!!! Error executing propagated command: " + e.getMessage());
                     e.printStackTrace();
                 }
             }
-
         } catch (IOException e) {
             System.out.println("Master connection lost: " + e.getMessage());
         }
     }
 
-    // ... (performHandshake, sendCommand, formatCommand 等方法保持不变) ...
     private void performHandshake(OutputStream os, Protocol parser) throws IOException {
         sendCommand(os, "PING");
         parser.readSimpleString();
