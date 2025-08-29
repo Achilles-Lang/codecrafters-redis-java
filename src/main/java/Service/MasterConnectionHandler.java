@@ -45,12 +45,11 @@ public class MasterConnectionHandler implements Runnable {
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             while (!masterSocket.isClosed()) {
-                // ===> 核心修正：为循环的每一次迭代都穿上“防弹衣” <===
                 try {
                     long bytesBeforeCommand = parser.getBytesRead();
                     List<byte[]> commandParts = parser.readCommand();
                     if (commandParts == null || commandParts.isEmpty()) {
-                        break; // 连接已关闭
+                        break;
                     }
                     long bytesAfterCommand = parser.getBytesRead();
                     long commandSize = bytesAfterCommand - bytesBeforeCommand;
@@ -61,21 +60,23 @@ public class MasterConnectionHandler implements Runnable {
                     if (command != null) {
                         System.out.println("Processing propagated command: " + formatCommand(commandParts));
 
-                        // 只有写命令需要真正执行来修改数据
-                        if (command instanceof WriteCommand) {
-                            // 创建一个临时的、无输出的 context，以防命令内部需要一个非 null 的 context 对象
-                            CommandContext context = new CommandContext(null,null);
+                        // ===> 核心修正：确保 REPLCONF 和 WriteCommand 都能被执行 <===
+                        if (command instanceof WriteCommand || "replconf".equals(commandName)) {
+                            // 为 REPLCONF 创建一个带有有效输出流的 context，以便它能回复 ACK
+                            // 为 WriteCommand 创建一个 context，即使它可能用不上
+                            CommandContext context = new CommandContext(os, this.replicaOffset);
                             command.execute(commandParts.subList(1, commandParts.size()), context);
                         }
+
+                        // 无论命令是否被执行，只要它来自 master，就必须增加偏移量
+                        this.replicaOffset += commandSize;
+
                     } else {
                         System.out.println("Unknown propagated command: " + commandName);
+                        // 即使命令未知，也要累加偏移量以保持同步
+                        this.replicaOffset += commandSize;
                     }
-
-                    // 无论命令是什么，只要它来自 master，就必须增加偏移量
-                    this.replicaOffset += commandSize;
-
                 } catch (Exception e) {
-                    // 捕获所有可能的异常（包括 NullPointerException），打印错误，但**不**退出循环
                     System.out.println("!!! Error processing a propagated command, but continuing: " + e.getMessage());
                     e.printStackTrace();
                 }
