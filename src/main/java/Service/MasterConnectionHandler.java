@@ -1,4 +1,4 @@
-// File Path: src/main/java/Service/MasterConnectionHandler.java
+// 文件路径: src/main/java/Service/MasterConnectionHandler.java
 
 package Service;
 
@@ -17,7 +17,8 @@ import java.util.stream.Collectors;
 
 /**
  * @author Achilles
- * Handles the connection from a replica to a master.
+ * @date 2023/10/07
+ * 主从复制连接处理类
  */
 public class MasterConnectionHandler implements Runnable {
     private final String masterHost;
@@ -44,11 +45,13 @@ public class MasterConnectionHandler implements Runnable {
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             while (!masterSocket.isClosed()) {
+                // ===> 核心修正：为循环的每一次迭代都穿上“防弹衣” <===
                 try {
-                    // 1. Calculate the size of the command accurately.
                     long bytesBeforeCommand = parser.getBytesRead();
                     List<byte[]> commandParts = parser.readCommand();
-                    if (commandParts == null || commandParts.isEmpty()) { break; }
+                    if (commandParts == null || commandParts.isEmpty()) {
+                        break; // 连接已关闭
+                    }
                     long bytesAfterCommand = parser.getBytesRead();
                     long commandSize = bytesAfterCommand - bytesBeforeCommand;
 
@@ -58,25 +61,23 @@ public class MasterConnectionHandler implements Runnable {
                     if (command != null) {
                         System.out.println("Processing propagated command: " + formatCommand(commandParts));
 
-                        // 2. Create the context with the CURRENT offset, BEFORE it's incremented.
-                        CommandContext context = new CommandContext(os, this.replicaOffset);
-
-                        // 3. Execute the command. REPLCONF GETACK will use the context to reply.
-                        //    WriteCommands will use it to update the DataStore.
-                        if (command instanceof WriteCommand || commandName.equals("replconf")) {
+                        // 只有写命令需要真正执行来修改数据
+                        if (command instanceof WriteCommand) {
+                            // 创建一个临时的、无输出的 context，以防命令内部需要一个非 null 的 context 对象
+                            CommandContext context = new CommandContext(null,null);
                             command.execute(commandParts.subList(1, commandParts.size()), context);
                         }
                     } else {
                         System.out.println("Unknown propagated command: " + commandName);
                     }
 
-                    // 4. AFTER handling the command, ALWAYS increment the offset by the command's size.
+                    // 无论命令是什么，只要它来自 master，就必须增加偏移量
                     this.replicaOffset += commandSize;
 
                 } catch (Exception e) {
-                    System.out.println("!!! Error processing propagated command: " + e.getMessage());
+                    // 捕获所有可能的异常（包括 NullPointerException），打印错误，但**不**退出循环
+                    System.out.println("!!! Error processing a propagated command, but continuing: " + e.getMessage());
                     e.printStackTrace();
-                    break; // Exit loop on error
                 }
             }
         } catch (IOException e) {
