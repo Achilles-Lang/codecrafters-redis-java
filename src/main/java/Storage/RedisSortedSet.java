@@ -43,6 +43,6 @@ public class RedisSortedSet {
         memberScores.put(memberStr, score);
 
         // 如果是新成员，返回 1
-        return isNewMember ? 0 : 1;
+        return isNewMember ? 1 : 0;
     }
 }
