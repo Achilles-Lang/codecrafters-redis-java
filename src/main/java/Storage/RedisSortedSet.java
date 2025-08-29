@@ -2,10 +2,9 @@
 
 package Storage;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Collectors;
 
 /**
  * @author Achilles
@@ -24,7 +23,8 @@ public class RedisSortedSet {
 
     /**
      * 向有序集合中添加或更新一个成员。
-     * @param score 成员的分数
+     *
+     * @param score  成员的分数
      * @param member 成员的字节数组
      * @return 如果是新添加的成员，返回 1；如果是更新现有成员的分数，返回 0。
      */
@@ -64,6 +64,9 @@ public class RedisSortedSet {
             this.score = score;
             this.member = member;
         }
+        public byte[] getMember() {
+            return member;
+        }
 
         @Override
         public int compareTo(SortedSetEntry other) {
@@ -96,9 +99,11 @@ public class RedisSortedSet {
         }
 
     }
+
     /**
      * ===> 新增方法 <===
      * 获取指定成员的排名 (从 0 开始的索引)。
+     *
      * @param member 要查询的成员
      * @return 成员的排名。如果成员不存在，返回 -1。
      */
@@ -127,4 +132,40 @@ public class RedisSortedSet {
 
         return -1; // 理论上不应该到达这里，但作为保护
     }
+
+    /**
+     * ===> 新增方法 <===
+     * <p>
+     * 获取指定排名范围内的所有成员。
+     *
+     * @param start 起始排名 (包含)
+     * @param stop  结束排名 (包含)
+     * @return 包含指定范围内所有成员的列表。
+     */
+    public synchronized List<byte[]> getRange(int start, int stop) {
+// 1. 将有序的条目转换为一个列表，以便按索引访问
+        List<SortedSetEntry> entryList = new ArrayList<>(sortedEntries.keySet());
+        int size = entryList.size();
+
+// 2. 处理索引边界情况 (注意：本阶段只处理非负索引)
+        if (start < 0) {
+            start = 0;
+        } // 简单保护
+        if (stop >= size) {
+            stop = size - 1;
+        }
+
+// 3. 如果起始索引无效或范围无效，返回空列表
+        if (start >= size || start > stop) {
+            return new ArrayList<>();
+        }
+
+// 4. 截取子列表并提取成员
+        return entryList.subList(start, stop + 1) // subList 的第二个参数是 exclusive，所以要 +1
+                .stream()
+                .map(SortedSetEntry::getMember)
+                .collect(Collectors.toList());
+    }
 }
+
+

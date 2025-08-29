@@ -43,6 +43,7 @@ public class CommandHandler {
         commandMap.put("unsubscribe",new UnsubscribeCommand());
         commandMap.put("zadd",new ZaddCommand());
         commandMap.put("zrank",new ZrankCommand());
+        commandMap.put("zrange",new ZrangeCommand());
     }
     public Command getCommand(String commandName)
     {

@@ -676,4 +676,27 @@ public class DataStore {
 
         return (long) rank;
     }
+    /**
+     * ===> 新增方法 <===
+     * 获取有序集合中指定排名范围内的成员。
+     * @param key   有序集合的 key
+     * @param start 起始排名
+     * @param stop  结束排名
+     * @return 包含成员的列表。如果 key 不存在，返回一个空列表。
+     * @throws WrongTypeException 如果 key 存在但不是有序集合。
+     */
+    public synchronized List<byte[]> zrange(String key, int start, int stop) throws WrongTypeException {
+        Object value = map.get(key);
+
+        if (value == null) {
+            return new ArrayList<>(); // Key 不存在，返回空数组
+        }
+
+        if (!(value instanceof RedisSortedSet)) {
+            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+        }
+
+        RedisSortedSet sortedSet = (RedisSortedSet) value;
+        return sortedSet.getRange(start, stop);
+    }
 }
