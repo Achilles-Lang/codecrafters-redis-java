@@ -45,6 +45,7 @@ public class CommandHandler {
         commandMap.put("zrank",new ZrankCommand());
         commandMap.put("zrange",new ZrangeCommand());
         commandMap.put("zcard",new ZcardCommand());
+        commandMap.put("zscore",new ZscoreCommand());
     }
     public Command getCommand(String commandName)
     {

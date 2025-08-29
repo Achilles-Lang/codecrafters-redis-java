@@ -174,6 +174,15 @@ public class RedisSortedSet {
     public synchronized int size() {
         return memberScores.size();
     }
+    /**
+     * 获取有序集合中的指定成员的分数。
+     * @param member 要查询的成员
+     * @return 成员的分数，如果成员不存在，返回 null。
+     */
+    public synchronized Double getScore(byte[] member) {
+        String memberStr = new String(member);
+        return memberScores.get(memberStr);
+    }
 }
 
 
