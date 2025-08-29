@@ -29,59 +29,54 @@ public class RdbParser {
 
             verifyHeader();
 
-            // **关键修复**: 确保 expiryTime 是一个 long 原始类型，并在此处初始化。
-            // 这样它在循环的每次迭代中都能被正确地访问和重置。
-            long expiryTime = -1L; // 使用 -1L 表示没有过期时间
+            long expiryTime = -1L;
 
             while (true) {
                 int opCode = bis.read();
                 if (opCode == -1) {
-                    break; // 到达文件末尾
+                    break;
                 }
 
                 switch (opCode) {
-                    case 0xFA: // AUX field
-                        readStringEncoded(); // Read and discard key
-                        readStringEncoded(); // Read and discard value
+                    case 0xFA:
+                        readStringEncoded();
+                        readStringEncoded();
                         break;
-                    case 0xFE: // SELECTDB
-                        readLength(); // Read and discard db number
+                    case 0xFE:
+                        readLength();
                         break;
-                    case 0xFB: // RESIZEDB
-                        readLength(); // Read and discard hash table size
-                        readLength(); // Read and discard expire hash table size
+                    case 0xFB:
+                        readLength();
+                        readLength();
                         break;
-                    case 0xFD: // EXPIRETIME (seconds)
+                    case 0xFD:
                         expiryTime = readExpirySeconds();
                         break;
-                    case 0xFC: // EXPIRETIME (milliseconds)
+                    case 0xFC:
                         expiryTime = readExpiryMillis();
                         break;
-                    case 0x00: // Value type: String
+                    case 0x00:
                         byte[] key = readStringEncoded();
                         byte[] value = readStringEncoded();
 
-                        // 这里的 expiryTime != -1L 比较现在是安全的
-                        // 注意：ValueEntry 的构造函数需要一个 Long 对象，所以我们在这里转换
-                        dataStore.setString(new String(key, StandardCharsets.UTF_8), new ValueEntry(value, expiryTime != -1L ? expiryTime : null));
+                        // **代码优化**: 创建一个明确的 Long 对象，让逻辑更清晰
+                        Long expiry = expiryTime != -1L ? Long.valueOf(expiryTime) : null;
+                        dataStore.setString(new String(key, StandardCharsets.UTF_8), new ValueEntry(value, expiry));
 
-                        // **关键**: 处理完一个键值对后，必须重置 expiryTime
                         expiryTime = -1L;
                         break;
-                    case 0xFF: // EOF
-                        // Read and discard 8-byte checksum if present
+                    case 0xFF:
                         if (bis.available() >= 8) {
                             bis.readNBytes(8);
                         }
-                        return; // End of file
+                        return;
                     default:
-                        // 忽略所有其他我们不关心的操作码
                         break;
                 }
             }
         } catch (Exception e) {
-            System.out.println("Error parsing RDB file: " + e.getMessage());
-            // 打印堆栈跟踪以帮助调试
+            // 为了调试，保留详细的错误打印
+            System.out.println("Exception in RdbParser.parse: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -102,7 +97,7 @@ public class RdbParser {
                 ((long) (bytes[2] & 0xFF) << 16) |
                 ((long) (bytes[1] & 0xFF) << 8) |
                 ((long) (bytes[0] & 0xFF));
-        return seconds * 1000; // Convert to milliseconds
+        return seconds * 1000;
     }
 
     private long readExpiryMillis() throws IOException {
@@ -123,15 +118,15 @@ public class RdbParser {
             throw new IOException("End of stream");
         }
         int type = (firstByte & 0xC0) >> 6;
-        if (type == 0) { // 6-bit length
+        if (type == 0) {
             return firstByte & 0x3F;
-        } else if (type == 1) { // 14-bit length
+        } else if (type == 1) {
             int nextByte = bis.read();
             return ((firstByte & 0x3F) << 8) | nextByte;
-        } else if (type == 2) { // 32-bit length
+        } else if (type == 2) {
             return bis.read() << 24 | bis.read() << 16 | bis.read() << 8 | bis.read();
         }
-        return -1; // Should not happen for length
+        return -1;
     }
 
     private byte[] readStringEncoded() throws IOException {
@@ -141,27 +136,27 @@ public class RdbParser {
         }
 
         int type = (firstByte & 0xC0) >> 6;
-        if (type == 3) { // Special encoded format
+        if (type == 3) {
             int encoding = firstByte & 0x3F;
-            if (encoding == 0) { // 8-bit integer
+            if (encoding == 0) {
                 return String.valueOf(bis.read()).getBytes();
-            } else if (encoding == 1) { // 16-bit integer
+            } else if (encoding == 1) {
                 int value = (bis.read() & 0xFF) | ((bis.read() & 0xFF) << 8);
                 return String.valueOf(value).getBytes();
-            } else if (encoding == 2) { // 32-bit integer
+            } else if (encoding == 2) {
                 long value = ((long)bis.read() & 0xFF) | (((long)bis.read() & 0xFF) << 8) | (((long)bis.read() & 0xFF) << 16) | (((long)bis.read() & 0xFF) << 24);
                 return String.valueOf(value).getBytes();
             } else {
                 throw new IOException("Unknown string encoding type: " + encoding);
             }
-        } else { // Length-prefixed string
+        } else {
             int length;
             if (type == 0) {
                 length = firstByte & 0x3F;
             } else if (type == 1) {
                 int nextByte = bis.read();
                 length = ((firstByte & 0x3F) << 8) | nextByte;
-            } else { // type == 2
+            } else {
                 length = bis.read() << 24 | bis.read() << 16 | bis.read() << 8 | bis.read();
             }
             return bis.readNBytes(length);
