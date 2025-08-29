@@ -68,7 +68,7 @@ public class MasterConnectionHandler implements Runnable {
                         }
 
                         // ** ===> 关键修复 4: 只有写命令才增加 offset <=== **
-                        if (command instanceof WriteCommand) {
+                        if (!commandName.equals("replconf")) {
                             this.replicaOffset += commandSize;
                         }
                     } else {
