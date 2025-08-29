@@ -699,4 +699,25 @@ public class DataStore {
         RedisSortedSet sortedSet = (RedisSortedSet) value;
         return sortedSet.getRange(start, stop);
     }
+    /**
+     * ===> 新增方法 <===
+     * 获取有序集合的成员数量。
+     * @param key 有序集合的 key
+     * @return  成员的数量 如果key不存在，返回0
+     * @throws WrongTypeException 如果 key 存在但不是有序集合。
+     */
+    public synchronized long zcard(String key) throws WrongTypeException {
+        Object value = map.get(key);
+
+        if (value == null) {
+            return 0; // Key 不存在
+        }
+
+        if (!(value instanceof RedisSortedSet)) {
+            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+        }
+
+        RedisSortedSet sortedSet = (RedisSortedSet) value;
+        return sortedSet.size();
+    }
 }

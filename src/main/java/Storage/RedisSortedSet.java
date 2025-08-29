@@ -167,6 +167,13 @@ public class RedisSortedSet {
                 .map(SortedSetEntry::getMember)
                 .collect(Collectors.toList());
     }
+    /**
+     *获取有序集合中的成员数量。
+     *@return 集合的大小
+     */
+    public synchronized int size() {
+        return memberScores.size();
+    }
 }
 
 
