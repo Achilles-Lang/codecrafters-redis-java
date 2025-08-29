@@ -43,79 +43,66 @@ public class MasterConnectionHandler implements Runnable {
 
             // --- 阶段 1: 握手 ---
             performHandshake(os, parser);
-
-            // --- 阶段 2: 命令传播循环 ---
             System.out.println("Handshake successful. Listening for propagated commands.");
 
+            // --- 阶段 2: 命令传播循环 ---
             while (!masterSocket.isClosed()) {
+                // ** ===> 关键修复 1: 为循环的每一次迭代都加上独立的 try-catch 块 <=== **
                 try {
                     List<byte[]> commandParts = parser.readCommand();
                     if (commandParts == null || commandParts.isEmpty()) {
-                        break;
+                        break; // 连接已关闭
                     }
 
-                    // **关键修复 1**: 统一通过 CommandHandler 处理所有命令
                     String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
                     Command command = this.commandHandler.getCommand(commandName);
 
                     if (command != null) {
                         System.out.println("Executing propagated command: " + formatCommand(commandParts));
 
-                        // **关键修复 2**: 创建一个非 null 的上下文，但内部的 stream 可以是 null
-                        // 因为从节点执行命令时，不需要向 Master 回复执行结果（ACK 除外）
-                        CommandContext context = new CommandContext(os,this.replicaOffset); // 传递 os 以便 REPLCONF ACK 可以回复
+                        // ** ===> 关键修复 2: 创建一个有效的、非 null 的上下文 <=== **
+                        // 我们需要一个可以传递 offset 的构造函数
+                        CommandContext context = new CommandContext(os, this.replicaOffset);
 
-                        // 我们只执行写命令，因为读命令没有意义
-                        if (command instanceof WriteCommand) {
-                            command.execute(commandParts.subList(1, commandParts.size()), context);
-                        } else if (commandName.equals("replconf")) {
-                            // REPLCONF GETACK 是特例，它需要执行并回复
+                        // 只执行写命令或需要回复的 REPLCONF 命令
+                        if (command instanceof WriteCommand || commandName.equals("replconf")) {
                             command.execute(commandParts.subList(1, commandParts.size()), context);
                         }
 
-                        // **关键修复 3**: 更新已处理的字节偏移量
-                        // 注意: 这假设 parser 能准确返回每个命令的字节数。
-                        // 一个更精确的方法是在 Protocol 解析器中累加。
-                        this.replicaOffset += calculateCommandSize(commandParts);
+                        // 只为非 REPLCONF GETACK 的写命令更新偏移量
+                        if (!commandName.equals("replconf")) {
+                            this.replicaOffset += calculateCommandSize(commandParts);
+                        }
 
                     } else {
                         System.out.println("Unknown propagated command: " + commandName);
+                        this.replicaOffset += calculateCommandSize(commandParts); // 即使未知，也要累加偏移量
                     }
                 } catch (Exception e) {
-                    // **关键修复 4**: 捕获所有异常，防止单个命令错误导致整个复制中断
-                    System.out.println("Error executing propagated command: " + e.getMessage());
+                    // ** ===> 关键修复 3: 捕获所有异常，打印堆栈，防止线程死亡 <=== **
+                    System.out.println("!!! Critical error executing propagated command, but replication will continue. Error: " + e.getMessage());
                     e.printStackTrace();
                 }
             }
 
         } catch (IOException e) {
-            System.out.println("IOException in MasterConnectionHandler, connection lost: " + e.getMessage());
+            System.out.println("Master connection lost: " + e.getMessage());
         }
     }
 
     private void performHandshake(OutputStream os, Protocol parser) throws IOException {
-        // PING
         sendCommand(os, "PING");
         parser.readSimpleString();
-
-        // REPLCONF listening-port
         sendCommand(os, "REPLCONF", "listening-port", String.valueOf(this.listeningPort));
         parser.readSimpleString();
-
-        // REPLCONF capa
         sendCommand(os, "REPLCONF", "capa", "psync2");
         parser.readSimpleString();
-
-        // PSYNC
         sendCommand(os, "PSYNC", "?", "-1");
         String psyncResponse = parser.readSimpleString();
         if (psyncResponse == null || !psyncResponse.startsWith("FULLRESYNC")) {
             throw new IOException("Did not receive FULLRESYNC from master.");
         }
-
-        // 读取并忽略 RDB 文件 (在之后的阶段需要解析它)
-        byte[] rdbData = parser.readRdbFile();
-        // TODO: 在需要时，在这里添加 RDB 文件的解析逻辑
+        parser.readRdbFile();
     }
 
     private void sendCommand(OutputStream os, String... args) throws IOException {
