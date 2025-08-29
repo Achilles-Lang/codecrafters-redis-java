@@ -16,7 +16,7 @@ import java.util.List;
 public class RespEncoder {
     public static void encode(OutputStream os, Object result) throws IOException {
         if (result == null) {
-            os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8)); // RESP Null Bulk String
+            os.write("*-1\r\n".getBytes(StandardCharsets.UTF_8)); // RESP Null Bulk String
         } else if (result instanceof String) {
             os.write(("+" + result + "\r\n").getBytes(StandardCharsets.UTF_8)); // Simple String
         } else if (result instanceof byte[]) {
