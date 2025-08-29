@@ -649,7 +649,6 @@ public class DataStore {
         return newElements;
     }
     /**
-     * ===> 新增方法 <===
      * 获取有序集合中指定成员的排名。
      * @param key 有序集合的 key
      * @param member 要查询的成员
