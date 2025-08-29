@@ -94,5 +94,37 @@ public class RedisSortedSet {
             // 只要成员相同，就认为是同一个条目 (用于 remove 操作)
             return Objects.hash(new String(this.member));
         }
+
+    }
+    /**
+     * ===> 新增方法 <===
+     * 获取指定成员的排名 (从 0 开始的索引)。
+     * @param member 要查询的成员
+     * @return 成员的排名。如果成员不存在，返回 -1。
+     */
+    public synchronized int getRank(byte[] member) {
+        String memberStr = new String(member);
+        // 1. 检查成员是否存在
+        if (!memberScores.containsKey(memberStr)) {
+            return -1; // -1 表示成员不存在
+        }
+
+        // 2. 获取成员的分数
+        double score = memberScores.get(memberStr);
+
+        // 3. 构造用于查找的目标条目
+        SortedSetEntry targetEntry = new SortedSetEntry(score, member);
+
+        // 4. 遍历有序的 Map 来找到索引
+        // 这是一个简单但有效的 O(n) 实现
+        int rank = 0;
+        for (SortedSetEntry entry : sortedEntries.keySet()) {
+            if (entry.equals(targetEntry)) {
+                return rank;
+            }
+            rank++;
+        }
+
+        return -1; // 理论上不应该到达这里，但作为保护
     }
 }

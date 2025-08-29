@@ -648,4 +648,32 @@ public class DataStore {
 
         return newElements;
     }
+    /**
+     * ===> 新增方法 <===
+     * 获取有序集合中指定成员的排名。
+     * @param key 有序集合的 key
+     * @param member 要查询的成员
+     * @return 成员的排名 (long 类型)。如果 key 或 member 不存在，返回 null。
+     * @throws WrongTypeException 如果 key 存在但不是有序集合。
+     */
+    public synchronized Long zrank(String key, byte[] member) throws WrongTypeException {
+        Object value = map.get(key);
+
+        if (value == null) {
+            return null; // Key 不存在
+        }
+
+        if (!(value instanceof RedisSortedSet)) {
+            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
+        }
+
+        RedisSortedSet sortedSet = (RedisSortedSet) value;
+        int rank = sortedSet.getRank(member);
+
+        if (rank == -1) {
+            return null; // Member 不存在
+        }
+
+        return (long) rank;
+    }
 }
