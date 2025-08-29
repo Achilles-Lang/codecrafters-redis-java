@@ -17,6 +17,11 @@ public class CommandContext {
         this.isClientSubscribed=isClientSubscribed;
     }
 
+    public CommandContext(OutputStream os) {
+        this.outputStream= os;
+        this.isClientSubscribed=false;
+    }
+
     public OutputStream getOutputStream(){
         return outputStream;
     }
