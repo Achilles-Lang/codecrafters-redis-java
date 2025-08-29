@@ -700,7 +700,6 @@ public class DataStore {
         return sortedSet.getRange(start, stop);
     }
     /**
-     * ===> 新增方法 <===
      * 获取有序集合的成员数量。
      * @param key 有序集合的 key
      * @return  成员的数量 如果key不存在，返回0
