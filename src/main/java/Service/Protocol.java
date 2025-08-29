@@ -16,18 +16,17 @@ public class Protocol {
         this.inputStream = inputStream;
     }
 
-    // ===> 核心修正：移除 resetBytesRead() 方法 <===
-    // 这个方法从根本上违反了复制偏移量只增不减的原则，是所有 bug 的根源。
-    // public void resetBytesRead() {
-    //     this.bytesRead = 0;
-    // }
+    // 新增：重置计数器的方法
+    public void resetBytesRead() {
+        this.bytesRead = 0;
+    }
 
     public long getBytesRead() {
         return this.bytesRead;
     }
 
     public List<byte[]> readCommand() throws IOException {
-        int firstByte = readByte();
+        int firstByte = readByte(); // 修改：使用封装的方法
         if (firstByte == -1) {
             return null;
         }

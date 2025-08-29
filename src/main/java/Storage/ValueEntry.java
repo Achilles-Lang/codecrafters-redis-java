@@ -6,12 +6,10 @@ package Storage;
  */
 public class ValueEntry {
     public final byte[] value;
+    final long expiryTimestamp; // 过期的绝对时间点 (毫秒)
 
-    // **关键修复**: 将类型从原始 long 修改为包装 Long，使其可以接受 null
-    final Long expiryTimestamp; // 过期的绝对时间点 (毫秒), null 表示永不过期
-
-    // **关键修复**: 构造函数的参数类型也修改为 Long
-    public ValueEntry(byte[] value, Long expiryTimestamp) {
+    // expiryTimestamp = -1 表示永不过期
+    public ValueEntry(byte[] value, long expiryTimestamp) {
         this.value = value;
         this.expiryTimestamp = expiryTimestamp;
     }
@@ -21,8 +19,7 @@ public class ValueEntry {
      * @return 如果已过期则返回 true，否则返回 false。
      */
     public boolean isExpired() {
-        // **关键修复**: 检查 expiryTimestamp 是否为 null
-        if (expiryTimestamp == null) {
+        if (expiryTimestamp == -1) {
             return false; // 永不过期
         }
         return System.currentTimeMillis() > expiryTimestamp;

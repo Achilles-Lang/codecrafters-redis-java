@@ -3,6 +3,7 @@
 package Commands;
 
 import java.io.OutputStream;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * @author Achilles
@@ -11,32 +12,18 @@ import java.io.OutputStream;
  */
 public class CommandContext {
     private final OutputStream outputStream;
-    private boolean isClientSubscribed = false;
+    private final boolean isClientSubscribed;
 
-    // 唯一的、清晰的构造函数
-    public CommandContext(OutputStream os, boolean isClientSubsigned) {
-        this.outputStream = os;
-        this.isClientSubscribed = isClientSubsigned;
+    public CommandContext(OutputStream os,boolean isClientSubscribed){
+        this.outputStream= os;
+        this.isClientSubscribed=isClientSubscribed;
     }
 
-    // 一个更简单的构造函数，用于不需要订阅状态的场景
-    public CommandContext(OutputStream os) {
-        this(os, false);
-    }
-
-    public OutputStream getOutputStream() {
+    public OutputStream getOutputStream(){
         return outputStream;
     }
 
-    public boolean isClientSubscribed() {
+    public boolean isClientSubscribed(){
         return isClientSubscribed;
-    }
-
-    public void enterSubscribeMode() {
-        this.isClientSubscribed = true;
-    }
-
-    public void exitSubscribeMode() {
-        this.isClientSubscribed = false;
     }
 }

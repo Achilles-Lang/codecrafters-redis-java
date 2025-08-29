@@ -1,6 +1,5 @@
 package Service;
 
-import Commands.Command;
 import Config.WrongTypeException;
 import Storage.StreamEntryID;
 import Storage.ValueEntry;
@@ -18,10 +17,6 @@ public class RespEncoder {
     public static void encode(OutputStream os, Object result) throws IOException {
         if (result == null) {
             os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8)); // RESP Null Bulk String
-        } else if (result== Command.NULL_ARRAY_RESPONSE) {
-            os.write("*-1\r\n".getBytes(StandardCharsets.UTF_8));
-        } else if (result==Command.NULL_BULK_STRING_RESPONSE) {
-            os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof String) {
             os.write(("+" + result + "\r\n").getBytes(StandardCharsets.UTF_8)); // Simple String
         } else if (result instanceof byte[]) {
@@ -50,6 +45,7 @@ public class RespEncoder {
                 os.write(("-ERR " + message + "\r\n").getBytes(StandardCharsets.UTF_8));
             }
         } else {
+            // **关键修复**: 添加一个默认分支来处理所有未知类型，防止静默失败。
             String errorMsg = "Unsupported response type: " + result.getClass().getName();
             os.write(("-ERR " + errorMsg + "\r\n").getBytes(StandardCharsets.UTF_8));
         }

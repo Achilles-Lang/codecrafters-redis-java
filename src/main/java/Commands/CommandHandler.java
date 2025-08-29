@@ -40,7 +40,6 @@ public class CommandHandler {
         commandMap.put("subscribe",new SubscribeCommand());
         commandMap.put("publish",new PublishCommand());
         commandMap.put("unsubscribe",new UnsubscribeCommand());
-        commandMap.put("zadd",new ZaddCommand());
     }
     public Command getCommand(String commandName)
     {
