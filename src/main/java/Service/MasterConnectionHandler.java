@@ -25,9 +25,7 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-
-    // ===> 核心修正 1: 这个变量用于记录握手阶段消耗的总字节数 <===
-    private long handshakeBytesCompleted = 0;
+    private long replicaOffset = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -44,46 +42,37 @@ public class MasterConnectionHandler implements Runnable {
             Protocol parser = new Protocol(is);
 
             performHandshake(os, parser);
-
-            // ===> 核心修正 2: 在握手完成后，记录下“热身”的总字节数 <===
-            this.handshakeBytesCompleted = parser.getBytesRead();
-
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             while (!masterSocket.isClosed()) {
                 try {
+                    // ===> 核心修正 1: 先计算出命令的大小 <===
+                    long bytesBeforeCommand = parser.getBytesRead();
                     List<byte[]> commandParts = parser.readCommand();
                     if (commandParts == null || commandParts.isEmpty()) {
                         break;
                     }
+                    long bytesAfterCommand = parser.getBytesRead();
+                    long commandSize = bytesAfterCommand - bytesBeforeCommand;
 
                     String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
-
-                    if ("replconf".equals(commandName) && commandParts.size() >= 2 && "getack".equalsIgnoreCase(new String(commandParts.get(1)))) {
-                        // ===> 核心修正 3: 报告的偏移量是“总距离”减去“热身距离” <===
-                        long currentOffset = parser.getBytesRead() - this.handshakeBytesCompleted;
-
-                        String response = "*3\r\n" +
-                                "$8\r\nREPLCONF\r\n" +
-                                "$3\r\nACK\r\n" +
-                                "$" + String.valueOf(currentOffset).length() + "\r\n" +
-                                currentOffset + "\r\n";
-                        os.write(response.getBytes(StandardCharsets.UTF_8));
-                        os.flush();
-
-                        continue;
-                    }
-
                     Command command = this.commandHandler.getCommand(commandName);
+
+                    // ===> 核心修正 2: 先处理命令（包括用旧的 offset 回复 ACK）<===
                     if (command != null) {
-                        System.out.println("Processing propagated command: " + formatCommand(commandParts));
-                        if (command instanceof WriteCommand) {
+                        if ("replconf".equals(commandName) && commandParts.size() >= 2 && "getack".equalsIgnoreCase(new String(commandParts.get(1)))) {
+                            // 使用当前的、尚未增加的 replicaOffset 来回复
+                            replyAck(os, this.replicaOffset);
+                        } else if (command instanceof WriteCommand) {
+                            System.out.println("Executing propagated command: " + formatCommand(commandParts));
                             CommandContext dummyContext = new CommandContext(null);
                             command.execute(commandParts.subList(1, commandParts.size()), dummyContext);
                         }
-                    } else {
-                        System.out.println("Unknown propagated command: " + commandName);
                     }
+
+                    // ===> 核心修正 3: 处理完命令之后，再把这个命令的大小加到 offset 上 <===
+                    this.replicaOffset += commandSize;
+
                 } catch (Exception e) {
                     System.out.println("!!! Error processing a propagated command, but continuing: " + e.getMessage());
                     e.printStackTrace();
@@ -92,6 +81,16 @@ public class MasterConnectionHandler implements Runnable {
         } catch (IOException e) {
             System.out.println("Master connection lost: " + e.getMessage());
         }
+    }
+
+    private void replyAck(OutputStream os, long offset) throws IOException {
+        String response = "*3\r\n" +
+                "$8\r\nREPLCONF\r\n" +
+                "$3\r\nACK\r\n" +
+                "$" + String.valueOf(offset).length() + "\r\n" +
+                offset + "\r\n";
+        os.write(response.getBytes(StandardCharsets.UTF_8));
+        os.flush();
     }
 
     private void performHandshake(OutputStream os, Protocol parser) throws IOException {
