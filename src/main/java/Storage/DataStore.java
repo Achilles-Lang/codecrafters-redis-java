@@ -721,7 +721,6 @@ public class DataStore {
         return sortedSet.size();
     }
     /**
-     * ===> 新增方法 <===
      * 获取有序集合中成员的分数。
      * @param key 有序集合的 key
      * @param member 要查询的成员
