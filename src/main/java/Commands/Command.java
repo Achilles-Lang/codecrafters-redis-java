@@ -8,6 +8,11 @@ import java.util.List;
  * 所有命令的统一接口
  */
 public interface Command {
+    // 代表 $-1
+    Object NULL_BULK_STRING_RESPONSE=new Object();
+    // 代表 *-1
+    Object NULL_ARRAY_RESPONSE=new Object();
+
     /**
      * **新增**: 一个特殊的静态对象，用作信号。
      * 当命令返回这个对象时，表示它已经自己处理了响应，

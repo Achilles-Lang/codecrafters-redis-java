@@ -75,7 +75,7 @@ public class XreadCommand implements Command {
             Map<String, List<StreamEntry>> resultData = DataStore.getInstance().xread(streamsToRead,timeoutMillis);
 
             if (resultData.isEmpty()||resultData==null) {
-                return null;
+                return Command.NULL_ARRAY_RESPONSE;
             }
 
             List<Object> response = new ArrayList<>();

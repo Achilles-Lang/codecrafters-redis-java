@@ -19,6 +19,9 @@ public class GetCommand implements Command {
         }
         String key = new String(args.get(0));
         ValueEntry entry = DataStore.getInstance().getString(key);
-        return (entry!=null)?entry.value:null;
+        if(entry==null){
+            return Command.NULL_BULK_STRING_RESPONSE;
+        }
+        return entry.value;
     }
 }
