@@ -143,16 +143,20 @@ public class RedisSortedSet {
      * @return 包含指定范围内所有成员的列表。
      */
     public synchronized List<byte[]> getRange(int start, int stop) {
-// 1. 将有序的条目转换为一个列表，以便按索引访问
         List<SortedSetEntry> entryList = new ArrayList<>(sortedEntries.keySet());
         int size = entryList.size();
 
-// 2. 处理索引边界情况 (注意：本阶段只处理非负索引)
         if (start < 0) {
-            start = 0;
+            start = size+start;
         } // 简单保护
         if (stop >= size) {
-            stop = size - 1;
+            stop = size + stop;
+        }
+        if(start<0){
+            start=0;
+        }
+        if(stop>=size){
+            stop=size-1;
         }
 
 // 3. 如果起始索引无效或范围无效，返回空列表
