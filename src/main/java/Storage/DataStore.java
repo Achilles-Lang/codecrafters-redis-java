@@ -196,7 +196,7 @@ public class DataStore {
 
     /**
      * [CORRECTED] 阻塞式地从列表左侧弹出一个元素，支持超时。
-     * This version uses this.wait() and this.notifyAll() to prevent race conditions.
+     * This version uses this.wait() and this.notify() to prevent race conditions.
      */
     public synchronized Object[] blpop(List<byte[]> keys, double timeoutSeconds) throws WrongTypeException, InterruptedException {
         long deadline = (timeoutSeconds > 0) ? (System.currentTimeMillis() + (long)(timeoutSeconds * 1000)) : 0;
