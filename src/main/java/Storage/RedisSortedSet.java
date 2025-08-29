@@ -135,7 +135,6 @@ public class RedisSortedSet {
 
     /**
      * ===> 新增方法 <===
-     * <p>
      * 获取指定排名范围内的所有成员。
      *
      * @param start 起始排名 (包含)
@@ -149,8 +148,8 @@ public class RedisSortedSet {
         if (start < 0) {
             start = size+start;
         } // 简单保护
-        if (stop >= size) {
-            stop = size + stop;
+        if(stop<0){
+            stop=size+stop;
         }
         if(start<0){
             start=0;
