@@ -31,12 +31,12 @@ public class RdbParser {
 
             // **关键修复**: 确保 expiryTime 是一个 long 原始类型，并在此处初始化。
             // 这样它在循环的每次迭代中都能被正确地访问和重置。
-            long expiryTime = -1;
+            long expiryTime = -1L; // 使用 -1L 表示没有过期时间
 
             while (true) {
                 int opCode = bis.read();
                 if (opCode == -1) {
-                    break;
+                    break; // 到达文件末尾
                 }
 
                 switch (opCode) {
@@ -61,21 +61,28 @@ public class RdbParser {
                         byte[] key = readStringEncoded();
                         byte[] value = readStringEncoded();
 
-                        // 这里的 expiryTime != -1 比较现在是安全的，因为 expiryTime 是原始类型 long
-                        dataStore.setString(new String(key, StandardCharsets.UTF_8), new ValueEntry(value, expiryTime != -1 ? expiryTime : null));
+                        // 这里的 expiryTime != -1L 比较现在是安全的
+                        // 注意：ValueEntry 的构造函数需要一个 Long 对象，所以我们在这里转换
+                        dataStore.setString(new String(key, StandardCharsets.UTF_8), new ValueEntry(value, expiryTime != -1L ? expiryTime : null));
 
-                        // **关键**: 处理完一个键值对后，必须重置 expiryTime，以防它被错误地应用到下一个没有过期时间的键上。
-                        expiryTime = -1;
+                        // **关键**: 处理完一个键值对后，必须重置 expiryTime
+                        expiryTime = -1L;
                         break;
                     case 0xFF: // EOF
-                        // Read and discard 8-byte checksum
-                        bis.readNBytes(8);
+                        // Read and discard 8-byte checksum if present
+                        if (bis.available() >= 8) {
+                            bis.readNBytes(8);
+                        }
                         return; // End of file
                     default:
                         // 忽略所有其他我们不关心的操作码
                         break;
                 }
             }
+        } catch (Exception e) {
+            System.out.println("Error parsing RDB file: " + e.getMessage());
+            // 打印堆栈跟踪以帮助调试
+            e.printStackTrace();
         }
     }
 
