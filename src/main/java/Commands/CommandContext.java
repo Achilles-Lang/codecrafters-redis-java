@@ -1,9 +1,8 @@
+// 文件路径: src/main/java/Commands/CommandContext.java
+
 package Commands;
 
-import Service.Protocol;
-
 import java.io.OutputStream;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * @author Achilles
@@ -12,49 +11,32 @@ import java.util.concurrent.ConcurrentSkipListMap;
  */
 public class CommandContext {
     private final OutputStream outputStream;
-    private  boolean isClientSubscribed=false;
-    private long replicaOffset=0;
-    private final Protocol parser;
+    private boolean isClientSubscribed = false;
 
-    public CommandContext(OutputStream os,boolean isClientSubscribed){
-        this.outputStream= os;
-        this.isClientSubscribed=isClientSubscribed;
-        this.parser=null;
-    }
-
-    public CommandContext(OutputStream os, long replicaOffset, Protocol parser) {
-        this.outputStream= os;
-        this.replicaOffset=replicaOffset;
-        this.parser = null;
-    }
-    public CommandContext(OutputStream outputStream, Protocol parser) {
-        this.outputStream = outputStream;
-        this.parser = parser;
-    }
-
-    public CommandContext(OutputStream os, long replicaOffset) {
+    // 唯一的、清晰的构造函数
+    public CommandContext(OutputStream os, boolean isClientSubsigned) {
         this.outputStream = os;
-        this.replicaOffset = replicaOffset;
-        this.parser = null;
+        this.isClientSubscribed = isClientSubsigned;
     }
 
-    public OutputStream getOutputStream(){
+    // 一个更简单的构造函数，用于不需要订阅状态的场景
+    public CommandContext(OutputStream os) {
+        this(os, false);
+    }
+
+    public OutputStream getOutputStream() {
         return outputStream;
     }
 
-    public boolean isClientSubscribed(){
+    public boolean isClientSubscribed() {
         return isClientSubscribed;
     }
-    public long getReplicaOffset(){
-        return replicaOffset;
+
+    public void enterSubscribeMode() {
+        this.isClientSubscribed = true;
     }
-    public void enterSubscribeMode(){
-        this.isClientSubscribed=true;
-    }
-    public void exitSubscribeMode(){
-        this.isClientSubscribed=false;
-    }
-    public Protocol getParser(){
-        return parser;
+
+    public void exitSubscribeMode() {
+        this.isClientSubscribed = false;
     }
 }

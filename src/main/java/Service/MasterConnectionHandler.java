@@ -39,6 +39,7 @@ public class MasterConnectionHandler implements Runnable {
         try (Socket masterSocket = new Socket(masterHost, masterPort)) {
             OutputStream os = masterSocket.getOutputStream();
             InputStream is = masterSocket.getInputStream();
+
             Protocol parser = new Protocol(is);
 
             performHandshake(os, parser);
@@ -46,36 +47,41 @@ public class MasterConnectionHandler implements Runnable {
 
             while (!masterSocket.isClosed()) {
                 try {
-                    long bytesBeforeCommand = parser.getBytesRead();
                     List<byte[]> commandParts = parser.readCommand();
                     if (commandParts == null || commandParts.isEmpty()) {
                         break;
                     }
-                    long bytesAfterCommand = parser.getBytesRead();
-                    long commandSize = bytesAfterCommand - bytesBeforeCommand;
 
                     String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
-                    Command command = this.commandHandler.getCommand(commandName);
 
-                    if (command != null) {
-                        System.out.println("Processing propagated command: " + formatCommand(commandParts));
+                    if ("replconf".equals(commandName) && commandParts.size() >= 2 && "getack".equalsIgnoreCase(new String(commandParts.get(1)))) {
+                        // 直接用当前的 replicaOffset 回复，不经过 CommandHandler
+                        String response = "*3\r\n" +
+                                "$8\r\nREPLCONF\r\n" +
+                                "$3\r\nACK\r\n" +
+                                "$" + String.valueOf(this.replicaOffset).length() + "\r\n" +
+                                this.replicaOffset + "\r\n";
+                        os.write(response.getBytes(StandardCharsets.UTF_8));
+                        os.flush();
 
-                        // ===> 核心修正：确保 REPLCONF 和 WriteCommand 都能被执行 <===
-                        if (command instanceof WriteCommand || "replconf".equals(commandName)) {
-                            // 为 REPLCONF 创建一个带有有效输出流的 context，以便它能回复 ACK
-                            // 为 WriteCommand 创建一个 context，即使它可能用不上
-                            CommandContext context = new CommandContext(os, this.replicaOffset);
-                            command.execute(commandParts.subList(1, commandParts.size()), context);
-                        }
-
-                        // 无论命令是否被执行，只要它来自 master，就必须增加偏移量
-                        this.replicaOffset += commandSize;
-
-                    } else {
-                        System.out.println("Unknown propagated command: " + commandName);
-                        // 即使命令未知，也要累加偏移量以保持同步
-                        this.replicaOffset += commandSize;
+                        // GETACK 命令本身不增加偏移量，因为它不是一个被复制的写命令
+                        continue; // 处理完毕，进入下一次循环
                     }
+
+                    long bytesBefore = this.replicaOffset;
+
+                    Command command=this.commandHandler.getCommand(commandName);
+                    if(command!=null){
+                        System.out.println("Processing propagated command: " + formatCommand(commandParts));
+                        if(command instanceof WriteCommand){
+                            CommandContext dummyContext = new CommandContext(null);
+                            command.execute(commandParts.subList(1,commandParts.size()),dummyContext);
+                        }
+                    }else {
+                        System.out.println("Unknown propagated command:" + commandName);
+
+                    }
+                    this.replicaOffset = parser.getBytesRead() - bytesBefore;
                 } catch (Exception e) {
                     System.out.println("!!! Error processing a propagated command, but continuing: " + e.getMessage());
                     e.printStackTrace();
