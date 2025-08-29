@@ -123,7 +123,7 @@ public class DataStore {
     public synchronized void setString(String key, ValueEntry value) {
         map.put(key, value);
         // Wake up any threads waiting in BLPOP or XREAD
-        this.notifyAll();
+        this.notify();
     }
 
     public synchronized ValueEntry getString(String key) {
@@ -162,7 +162,7 @@ public class DataStore {
         list.addAll(valuesToPush);
 
         // Wake up any threads waiting in BLPOP
-        this.notifyAll();
+        this.notify();
         return list.size();
     }
 
@@ -172,7 +172,7 @@ public class DataStore {
             list.addFirst(v);
         }
         // Wake up any threads waiting in BLPOP
-        this.notifyAll();
+        this.notify();
         return list.size();
     }
 
@@ -306,7 +306,7 @@ public class DataStore {
         }
         StreamEntryID newId = stream.add(finalId, fields);
         // Wake up any threads waiting in XREAD
-        this.notifyAll();
+        this.notify();
         return newId;
     }
 
