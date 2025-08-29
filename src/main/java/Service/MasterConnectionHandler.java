@@ -25,8 +25,7 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-
-    // ** ===> 核心修正：移除手动维护的 replicaOffset <=== **
+    private long replicaOffset = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -47,24 +46,46 @@ public class MasterConnectionHandler implements Runnable {
 
             while (!masterSocket.isClosed()) {
                 try {
+                    long bytesBeforeCommand = parser.getBytesRead();
                     List<byte[]> commandParts = parser.readCommand();
                     if (commandParts == null || commandParts.isEmpty()) { break; }
+                    long bytesAfterCommand = parser.getBytesRead();
+                    long commandSize = bytesAfterCommand - bytesBeforeCommand;
 
                     String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
-                    Command command = this.commandHandler.getCommand(commandName);
 
+                    // ** ===> 核心修正 1: 单独、优先处理 GETACK <=== **
+                    if (commandName.equals("replconf") && commandParts.size() >= 2 && "getack".equalsIgnoreCase(new String(commandParts.get(1)))) {
+                        System.out.println("Received GETACK. Replying with offset: " + this.replicaOffset);
+                        // 立即用当前的 offset 回复，不执行命令，也不增加 offset
+                        String response = "*3\r\n" +
+                                "$8\r\nREPLCONF\r\n" +
+                                "$3\r\nACK\r\n" +
+                                "$" + String.valueOf(this.replicaOffset).length() + "\r\n" +
+                                this.replicaOffset + "\r\n";
+                        os.write(response.getBytes(StandardCharsets.UTF_8));
+                        os.flush();
+                        continue; // 继续下一次循环
+                    }
+
+                    // ** ===> 核心修正 2: 处理所有其他传播的命令 <=== **
+                    Command command = this.commandHandler.getCommand(commandName);
                     if (command != null) {
                         System.out.println("Executing propagated command: " + formatCommand(commandParts));
-
-                        // ** ===> 核心修正：将 parser 传递给 context <=== **
-                        CommandContext context = new CommandContext(os, parser);
-
-                        // 只执行写命令和 REPLCONF
-                        if (command instanceof WriteCommand || commandName.equals("replconf")) {
+                        // 只有写命令需要真正执行来修改数据
+                        if (command instanceof WriteCommand) {
+                            // 创建一个临时的、无输出的 context
+                            CommandContext context = new CommandContext(null,null);
                             command.execute(commandParts.subList(1, commandParts.size()), context);
                         }
+
+                        // ** ===> 核心修正 3: 所有非 GETACK 命令都会增加 offset <=== **
+                        this.replicaOffset += commandSize;
+
                     } else {
-                        System.out.println("Unknown propagated command: " + commandName);
+                        System.out.println("Unknown propagated command, but still incrementing offset: " + commandName);
+                        // 即使命令未知，也要累加偏移量以保持同步
+                        this.replicaOffset += commandSize;
                     }
                 } catch (Exception e) {
                     System.out.println("!!! Error executing propagated command: " + e.getMessage());
@@ -76,7 +97,6 @@ public class MasterConnectionHandler implements Runnable {
         }
     }
 
-    // ... (performHandshake, sendCommand, formatCommand 方法保持不变) ...
     private void performHandshake(OutputStream os, Protocol parser) throws IOException {
         sendCommand(os, "PING");
         parser.readSimpleString();
