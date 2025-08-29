@@ -611,4 +611,25 @@ public class DataStore {
             }
         }
     }
+
+    public synchronized int zadd(String key, List<Object> scoresAndMembers) throws Exception {
+        Object value=map.get(key);
+        RedisSortedSet sortedSet;
+
+        if(value==null){
+            sortedSet=new RedisSortedSet();
+            map.put(key,sortedSet);
+        }else if(value instanceof RedisSortedSet){
+            sortedSet=(RedisSortedSet) value;
+        }else{
+            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+        }
+        int newElements=0;
+        for(int i=0;i<scoresAndMembers.size();i+=2){
+            double score=Double.parseDouble(new String((byte[]) scoresAndMembers.get(i)));
+            byte[] member=(byte[]) scoresAndMembers.get(i+1);
+            newElements+=sortedSet.add(score,member);
+        }
+        return newElements;
+    }
 }
