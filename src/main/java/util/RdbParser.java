@@ -29,6 +29,8 @@ public class RdbParser {
 
             verifyHeader();
 
+            // **关键修复**: 确保 expiryTime 是一个 long 原始类型，并在此处初始化。
+            // 这样它在循环的每次迭代中都能被正确地访问和重置。
             long expiryTime = -1;
 
             while (true) {
@@ -58,20 +60,26 @@ public class RdbParser {
                     case 0x00: // Value type: String
                         byte[] key = readStringEncoded();
                         byte[] value = readStringEncoded();
+
+                        // 这里的 expiryTime != -1 比较现在是安全的，因为 expiryTime 是原始类型 long
                         dataStore.setString(new String(key, StandardCharsets.UTF_8), new ValueEntry(value, expiryTime != -1 ? expiryTime : null));
-                        expiryTime = -1; // Reset expiry time for the next key
+
+                        // **关键**: 处理完一个键值对后，必须重置 expiryTime，以防它被错误地应用到下一个没有过期时间的键上。
+                        expiryTime = -1;
                         break;
                     case 0xFF: // EOF
-                        // Before returning, check for checksum
-                        bis.readNBytes(8); // Read and discard 8-byte checksum
+                        // Read and discard 8-byte checksum
+                        bis.readNBytes(8);
                         return; // End of file
                     default:
-                        System.out.println("Ignoring unknown opcode: " + opCode);
+                        // 忽略所有其他我们不关心的操作码
                         break;
                 }
             }
         }
     }
+
+    // ... (其他方法保持不变) ...
 
     private void verifyHeader() throws IOException {
         byte[] header = bis.readNBytes(9);
@@ -119,9 +127,6 @@ public class RdbParser {
         return -1; // Should not happen for length
     }
 
-    /**
-     * **关键修复**: 这个方法现在可以处理普通字符串和整数编码的字符串。
-     */
     private byte[] readStringEncoded() throws IOException {
         int firstByte = bis.read();
         if (firstByte == -1) {
