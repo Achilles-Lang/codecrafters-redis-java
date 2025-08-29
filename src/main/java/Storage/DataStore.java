@@ -612,24 +612,41 @@ public class DataStore {
         }
     }
 
+    /**
+     * 向指定 key 的有序集合中添加一个或多个成员。
+     * @param key 有序集合的 key
+     * @param scoresAndMembers 一个列表，格式为 [score1, member1, score2, member2, ...]
+     * @return 新添加的成员数量
+     * @throws Exception 如果 key 存在但不是有序集合，或参数格式错误
+     */
     public synchronized int zadd(String key, List<Object> scoresAndMembers) throws Exception {
-        Object value=map.get(key);
+        Object value = map.get(key);
         RedisSortedSet sortedSet;
 
-        if(value==null){
-            sortedSet=new RedisSortedSet();
-            map.put(key,sortedSet);
-        }else if(value instanceof RedisSortedSet){
-            sortedSet=(RedisSortedSet) value;
-        }else{
-            throw new WrongTypeException("WRONGTYPE Operation against a key holding the wrong kind of value");
+        if (value == null) {
+            sortedSet = new RedisSortedSet();
+            map.put(key, sortedSet);
+        } else if (value instanceof RedisSortedSet) {
+            sortedSet = (RedisSortedSet) value;
+        } else {
+            // 如果 key 存在但不是我们期望的类型，抛出异常
+            throw new WrongTypeException("Operation against a key holding the wrong kind of value");
         }
-        int newElements=0;
-        for(int i=0;i<scoresAndMembers.size();i+=2){
-            double score=Double.parseDouble(new String((byte[]) scoresAndMembers.get(i)));
-            byte[] member=(byte[]) scoresAndMembers.get(i+1);
-            newElements+=sortedSet.add(score,member);
+
+        if (scoresAndMembers.size() % 2 != 0) {
+            throw new Exception("ZADD command requires score-member pairs.");
         }
+
+        int newElements = 0;
+        for (int i = 0; i < scoresAndMembers.size(); i += 2) {
+            // 从列表中解析出 score 和 member
+            double score = Double.parseDouble(new String((byte[]) scoresAndMembers.get(i)));
+            byte[] member = (byte[]) scoresAndMembers.get(i + 1);
+
+            // 调用 RedisSortedSet 的 add 方法
+            newElements += sortedSet.add(score, member);
+        }
+
         return newElements;
     }
 }
