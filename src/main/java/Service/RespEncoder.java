@@ -19,10 +19,7 @@ public class RespEncoder {
             os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8));
         } else if (result == Command.NULL_ARRAY_RESPONSE) {
             os.write("*-1\r\n".getBytes(StandardCharsets.UTF_8));
-        }
-        // ===> 修改/新增的逻辑结束 <===
-
-        else if (result == null) {
+        } else if (result == null) {
             // 保留一个默认的 null 处理，以兼容老的 GET 命令逻辑
             os.write("$-1\r\n".getBytes(StandardCharsets.UTF_8));
         } else if (result instanceof String) {

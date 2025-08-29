@@ -1,23 +1,16 @@
+// 文件路径: src/main/java/Commands/Impl/BlpopCommand.java
+
 package Commands.Impl;
 
 import Commands.Command;
 import Commands.CommandContext;
-import Service.RespEncoder;
 import Storage.DataStore;
 
-import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 public class BlpopCommand implements Command {
-
-    /**
-     * **改动 1: 新增一个特殊的静态对象，用作信号**
-     * 当命令返回这个对象时，就告诉 ClientHandler：“响应我已经发了，你不用管了”。
-     */
-    public static final Object RESPONSE_ALREADY_SENT = new Object();
 
     @Override
     public Object execute(List<byte[]> args, CommandContext context) {
@@ -26,52 +19,37 @@ public class BlpopCommand implements Command {
         }
 
         try {
+            // 解析超时时间和 keys
             double timeout = Double.parseDouble(new String(args.get(args.size() - 1), StandardCharsets.UTF_8));
             List<byte[]> keys = args.subList(0, args.size() - 1);
 
-            // 阻塞并获取结果
+            // 调用 DataStore 的阻塞方法
             Object[] result = DataStore.getInstance().blpop(keys, timeout);
 
-            /**
-             * **改动 2: 不再返回数据，而是直接在这里发送响应**
-             * 这是整个修复的核心。
-             */
+            // ===> 核心修正：不再自己发送响应，而是返回结果或信号 <===
             if (result == null) {
-                // 超时，直接发送 RESP Null
-                RespEncoder.encode(context.getOutputStream(), null);
+                // 如果结果是 null (超时)，返回我们定义的 Null Array 信号
+                return Command.NULL_ARRAY_RESPONSE;
             } else {
-                // 成功获取，构建并直接发送响应数组
+                // 如果成功获取到数据，将其构造成一个列表并返回
+                // 主循环和 RespEncoder 会自动将其编码为 RESP 数组
+                List<byte[]> responseList = new ArrayList<>();
                 if (result.length == 2 && result[0] instanceof byte[] && result[1] instanceof byte[]) {
-                    List<byte[]> responseList = new ArrayList<>();
                     responseList.add((byte[]) result[0]); // key
                     responseList.add((byte[]) result[1]); // value
-                    RespEncoder.encode(context.getOutputStream(), responseList);
+                    return responseList;
                 } else {
-                    RespEncoder.encode(context.getOutputStream(), new Exception("Internal error: DataStore returned unexpected format for BLPOP"));
+                    // 理论上不应该发生，但作为保护
+                    return new Exception("Internal error: DataStore returned unexpected format for BLPOP");
                 }
             }
-            System.out.println("[DIAGNOSTIC] BLPOP: Attempting to flush output stream...");
-            context.getOutputStream().flush();
-            System.out.println("[DIAGNOSTIC] BLPOP: Flush completed successfully.");
-
-
-            /**
-             * **改动 3: 返回我们的信号对象**
-             */
-            return RESPONSE_ALREADY_SENT;
-
+        } catch (InterruptedException e) {
+            // 如果线程在等待时被中断，也返回 Null Array
+            Thread.currentThread().interrupt(); // 重新设置中断状态
+            return Command.NULL_ARRAY_RESPONSE;
         } catch (Exception e) {
-            // 如果在整个过程中发生任何异常，也直接在这里发送错误响应
-            try {
-                RespEncoder.encode(context.getOutputStream(), e);
-                System.out.println("[DIAGNOSTIC] BLPOP: Attempting to flush error stream...");
-                context.getOutputStream().flush();
-                System.out.println("[DIAGNOSTIC] BLPOP: Flush error completed successfully.");
-
-            } catch (IOException ioException) {
-                ioException.printStackTrace();
-            }
-            return RESPONSE_ALREADY_SENT;
+            // 捕获其他所有异常，比如数字格式错误
+            return e;
         }
     }
 }
