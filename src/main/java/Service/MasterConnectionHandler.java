@@ -25,7 +25,9 @@ public class MasterConnectionHandler implements Runnable {
     private final int masterPort;
     private final int listeningPort;
     private final CommandHandler commandHandler;
-    private long replicaOffset = 0;
+
+    // ===> 核心修正 1: 这个变量用于记录握手阶段消耗的总字节数 <===
+    private long handshakeBytesCompleted = 0;
 
     public MasterConnectionHandler(String host, int port, int listeningPort, CommandHandler commandHandler) {
         this.masterHost = host;
@@ -39,10 +41,13 @@ public class MasterConnectionHandler implements Runnable {
         try (Socket masterSocket = new Socket(masterHost, masterPort)) {
             OutputStream os = masterSocket.getOutputStream();
             InputStream is = masterSocket.getInputStream();
-
             Protocol parser = new Protocol(is);
 
             performHandshake(os, parser);
+
+            // ===> 核心修正 2: 在握手完成后，记录下“热身”的总字节数 <===
+            this.handshakeBytesCompleted = parser.getBytesRead();
+
             System.out.println("Handshake successful. Listening for propagated commands.");
 
             while (!masterSocket.isClosed()) {
@@ -55,33 +60,30 @@ public class MasterConnectionHandler implements Runnable {
                     String commandName = new String(commandParts.get(0), StandardCharsets.UTF_8).toLowerCase();
 
                     if ("replconf".equals(commandName) && commandParts.size() >= 2 && "getack".equalsIgnoreCase(new String(commandParts.get(1)))) {
-                        // 直接用当前的 replicaOffset 回复，不经过 CommandHandler
+                        // ===> 核心修正 3: 报告的偏移量是“总距离”减去“热身距离” <===
+                        long currentOffset = parser.getBytesRead() - this.handshakeBytesCompleted;
+
                         String response = "*3\r\n" +
                                 "$8\r\nREPLCONF\r\n" +
                                 "$3\r\nACK\r\n" +
-                                "$" + String.valueOf(this.replicaOffset).length() + "\r\n" +
-                                this.replicaOffset + "\r\n";
+                                "$" + String.valueOf(currentOffset).length() + "\r\n" +
+                                currentOffset + "\r\n";
                         os.write(response.getBytes(StandardCharsets.UTF_8));
                         os.flush();
 
-                        // GETACK 命令本身不增加偏移量，因为它不是一个被复制的写命令
-                        continue; // 处理完毕，进入下一次循环
+                        continue;
                     }
 
-                    long bytesBefore = this.replicaOffset;
-
-                    Command command=this.commandHandler.getCommand(commandName);
-                    if(command!=null){
+                    Command command = this.commandHandler.getCommand(commandName);
+                    if (command != null) {
                         System.out.println("Processing propagated command: " + formatCommand(commandParts));
-                        if(command instanceof WriteCommand){
+                        if (command instanceof WriteCommand) {
                             CommandContext dummyContext = new CommandContext(null);
-                            command.execute(commandParts.subList(1,commandParts.size()),dummyContext);
+                            command.execute(commandParts.subList(1, commandParts.size()), dummyContext);
                         }
-                    }else {
-                        System.out.println("Unknown propagated command:" + commandName);
-
+                    } else {
+                        System.out.println("Unknown propagated command: " + commandName);
                     }
-                    this.replicaOffset = parser.getBytesRead() - bytesBefore;
                 } catch (Exception e) {
                     System.out.println("!!! Error processing a propagated command, but continuing: " + e.getMessage());
                     e.printStackTrace();
